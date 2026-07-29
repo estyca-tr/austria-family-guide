@@ -150,7 +150,25 @@ window.TripSync = (function () {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  const FETCH_TIMEOUT_MS = 12000;
+  const FETCH_TIMEOUT_MS = 20000;
+  const PUSH_TIMEOUT_MS = 25000;
+
+  function supabaseHeaders(key, extra) {
+    return {
+      apikey: key,
+      Authorization: 'Bearer ' + key,
+      Accept: 'application/json',
+      ...(extra || {}),
+    };
+  }
+
+  function compactMarks(obj) {
+    const out = {};
+    for (const [k, v] of Object.entries(obj || {})) {
+      if (v) out[k] = true;
+    }
+    return out;
+  }
 
   async function fetchWithTimeout(url, options, timeoutMs) {
     const ms = timeoutMs || FETCH_TIMEOUT_MS;
@@ -165,29 +183,27 @@ window.TripSync = (function () {
 
   async function supabaseFetch(room) {
     const sb = getSupabase();
-    if (!sb) return null;
+    if (!sb) return { ok: false, row: null };
     const endpoint = sb.url + '/rest/v1/trip_states?room_id=eq.' + encodeURIComponent(room) + '&select=*';
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const res = await fetchWithTimeout(endpoint, {
           method: 'GET',
           cache: 'no-store',
-          headers: {
-            apikey: sb.key,
-            Accept: 'application/json',
-          },
+          mode: 'cors',
+          headers: supabaseHeaders(sb.key),
         });
         if (res.ok) {
           const rows = await res.json();
-          return rows[0] || null;
+          return { ok: true, row: rows[0] || null };
         }
         if (attempt === 0 && res.status === 401) {
           localStorage.removeItem(CONFIG_KEY);
         }
       } catch { /* retry */ }
-      if (attempt < 2) await sleep(600);
+      if (attempt < 1) await sleep(800);
     }
-    return null;
+    return { ok: false, row: null };
   }
 
 
@@ -213,26 +229,24 @@ window.TripSync = (function () {
     const sb = getSupabase();
     if (!sb) return false;
 
-    const existing = await supabaseFetch(room);
-
     const ts = Date.now();
     const body = {
       room_id: room,
-      checks: { ...(state.checks || {}) },
-      shopping: { ...(state.shopping || {}) },
-      custom: mergeCustom(existing?.custom, state.custom),
+      checks: compactMarks(state.checks),
+      shopping: compactMarks(state.shopping),
+      custom: state.custom || {},
       updated_at: ts,
     };
     try {
       const res = await fetchWithTimeout(sb.url + '/rest/v1/trip_states', {
         method: 'POST',
-        headers: {
-          apikey: sb.key,
+        mode: 'cors',
+        headers: supabaseHeaders(sb.key, {
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates,return=minimal',
-        },
+        }),
         body: JSON.stringify(body),
-      });
+      }, PUSH_TIMEOUT_MS);
       if (!res.ok) return false;
       lastAppliedTs = ts;
       return true;
@@ -245,18 +259,16 @@ window.TripSync = (function () {
     const room = getRoomId();
     if (!room) return { error: 'no-room' };
     if (!hasCloud()) return { error: 'no-cloud' };
-    const row = await supabaseFetch(room);
-    if (row === null && hasCloud()) {
-      return { error: 'network' };
-    }
-    if (!row) {
+    const result = await supabaseFetch(room);
+    if (!result.ok) return { error: 'network' };
+    if (!result.row) {
       return { checks: {}, shopping: {}, custom: {}, _ts: 0 };
     }
     return {
-      checks: row.checks || {},
-      shopping: row.shopping || {},
-      custom: row.custom || {},
-      _ts: row.updated_at || 0,
+      checks: result.row.checks || {},
+      shopping: result.row.shopping || {},
+      custom: result.row.custom || {},
+      _ts: result.row.updated_at || 0,
     };
   }
 
@@ -265,8 +277,8 @@ window.TripSync = (function () {
     if (!getRoomId() || !hasCloud()) return;
     pollTimer = setInterval(async () => {
       const remote = await fetchOnce();
-      if (!remote || remote.error || !remote._ts) return;
-      if (remote._ts <= lastAppliedTs) return;
+      if (!remote || remote.error) return;
+      if (remote._ts && remote._ts <= lastAppliedTs) return;
       lastAppliedTs = remote._ts;
       if (onRemoteCallback) {
         onRemoteCallback({

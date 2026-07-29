@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '31';
+  const APP_VERSION = '32';
   const RECENT_EDIT_MS = 10000;
   let syncInFlight = false;
   let state = loadState();
@@ -180,6 +180,14 @@
     applyingRemote = false;
   }
 
+  function dedupeItems(a, b) {
+    const map = new Map();
+    [...(a || []), ...(b || [])].forEach((item) => {
+      if (item && item.id) map.set(item.id, item);
+    });
+    return [...map.values()];
+  }
+
   function mergeCustom(local, remote) {
     const base = { ...defaultCustom(), ...(local || {}) };
     const incoming = { ...defaultCustom(), ...(remote || {}) };
@@ -190,10 +198,10 @@
       stayNotes: { ...incoming.stayNotes, ...base.stayNotes },
       activities: { ...incoming.activities, ...base.activities },
       pretrip: { ...incoming.pretrip, ...base.pretrip },
-      forget: [...(incoming.forget || []), ...(base.forget || [])],
-      bookings: [...(incoming.bookings || []), ...(base.bookings || [])],
-      budget: [...(incoming.budget || []), ...(base.budget || [])],
-      shoppingCats: [...(incoming.shoppingCats || []), ...(base.shoppingCats || [])],
+      forget: dedupeItems(incoming.forget, base.forget),
+      bookings: dedupeItems(incoming.bookings, base.bookings),
+      budget: dedupeItems(incoming.budget, base.budget),
+      shoppingCats: dedupeItems(incoming.shoppingCats, base.shoppingCats),
     };
   }
 
@@ -214,8 +222,6 @@
     }
 
     await syncWithCloud(false);
-    syncStatus = 'live';
-    updateSyncDot();
   }
 
   function applyRemoteFromPoll(remote, remoteTs) {
@@ -240,6 +246,11 @@
 
     try {
       const remote = await TripSync.fetchOnce();
+      if (remote?.error === 'network') {
+        syncStatus = 'error';
+        if (notify) showToast('🔴 אין חיבור לענן — בדקי WiFi ונסי שוב');
+        return false;
+      }
       if (remote?.error === 'no-room') {
         syncStatus = 'error';
         if (notify) showToast('חסר קוד קבוצה — מחקי את האייקון והוסיפי מחדש מהקישור');
@@ -261,7 +272,7 @@
         }
         return false;
       }
-      if (!remote || !remote._ts) {
+      if (!remote || remote.error) {
         syncStatus = 'error';
         if (notify) showToast('🔴 לא הצלחנו לטעון מהענן');
         return false;
