@@ -3,6 +3,7 @@ window.TripSync = (function () {
   'use strict';
 
   const ROOM_KEY = 'austria-trip-room';
+  const ROOM_COOKIE = 'austria-trip-room-code';
   const CONFIG_KEY = 'austria-supabase-config';
   const POLL_MS = 2000;
   let roomId = null;
@@ -37,6 +38,21 @@ window.TripSync = (function () {
     return true;
   }
 
+  function readRoomCookie() {
+    const m = document.cookie.match(new RegExp('(?:^|; )' + ROOM_COOKIE + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  function writeRoomCookie(code) {
+    if (!code) return;
+    document.cookie = ROOM_COOKIE + '=' + encodeURIComponent(code)
+      + ';path=/;max-age=31536000;SameSite=Lax';
+  }
+
+  function clearRoomCookie() {
+    document.cookie = ROOM_COOKIE + '=;path=/;max-age=0;SameSite=Lax';
+  }
+
   function resolveRoomId() {
     const params = new URLSearchParams(location.search);
     const fromUrl = params.get('g');
@@ -44,10 +60,16 @@ window.TripSync = (function () {
       const code = fromUrl.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (code.length >= 6) {
         localStorage.setItem(ROOM_KEY, code);
+        writeRoomCookie(code);
         return code;
       }
     }
-    return localStorage.getItem(ROOM_KEY) || null;
+    const stored = localStorage.getItem(ROOM_KEY) || readRoomCookie();
+    if (stored) {
+      localStorage.setItem(ROOM_KEY, stored);
+      writeRoomCookie(stored);
+    }
+    return stored || null;
   }
 
   function getRoomId() {
@@ -211,6 +233,7 @@ window.TripSync = (function () {
   function createRoom() {
     roomId = generateRoomId();
     localStorage.setItem(ROOM_KEY, roomId);
+    writeRoomCookie(roomId);
     updateUrl(roomId);
     if (hasCloud()) startPolling();
     return roomId;
@@ -221,6 +244,7 @@ window.TripSync = (function () {
     if (code.length < 6) return null;
     roomId = code;
     localStorage.setItem(ROOM_KEY, code);
+    writeRoomCookie(code);
     updateUrl(code);
     if (hasCloud()) startPolling();
     return roomId;
@@ -230,6 +254,7 @@ window.TripSync = (function () {
     stopPolling();
     roomId = null;
     localStorage.removeItem(ROOM_KEY);
+    clearRoomCookie();
     updateUrl(null);
   }
 

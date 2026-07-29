@@ -1,43 +1,39 @@
-const CACHE = 'austria-trip-v18';
-const ASSETS = [
-  './', './index.html', './styles.css?v=13', './app.js?v=13', './data.js?v=13',
-  './places.js?v=13', './sync.js?v=13', './sync-config.js?v=13',
-  './manifest.json', './icon.svg',
-];
+/* Network-first: always fetch fresh app files. No stale precache. */
+const VERSION = 'austria-trip-v19';
 
-self.addEventListener('install', e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
+self.addEventListener('install', () => {
   self.skipWaiting();
 });
 
-self.addEventListener('activate', e => {
+self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
   );
   self.clients.claim();
 });
 
-self.addEventListener('fetch', e => {
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
+});
+
+self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  const isAppFile = /\.(js|css|html)(\?|$)/.test(url.pathname + url.search)
+  if (url.hostname.includes('supabase.co')) return;
+
+  const sameOrigin = url.origin === self.location.origin;
+  const isShell = sameOrigin && (
+    url.pathname.endsWith('.html')
+    || url.pathname.endsWith('.js')
+    || url.pathname.endsWith('.css')
+    || url.pathname.endsWith('/')
+    || url.pathname.endsWith('/austria-family-guide')
     || url.pathname.endsWith('/austria-family-guide/')
-    || url.pathname.endsWith('/austria-family-guide');
+  );
 
-  if (isAppFile) {
-    e.respondWith(
-      fetch(e.request)
-        .then(res => {
-          const copy = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, copy));
-          return res;
-        })
-        .catch(() => caches.match(e.request))
-    );
-    return;
-  }
+  if (!isShell) return;
 
-  e.respondWith(caches.match(e.request).then(cached => cached || fetch(e.request)));
+  e.respondWith(
+    fetch(e.request, { cache: 'no-store' }).catch(() => caches.match(e.request))
+  );
 });

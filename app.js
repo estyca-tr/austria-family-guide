@@ -530,6 +530,71 @@
     return { done, total: all.length };
   }
 
+  function isStandalonePwa() {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+  }
+
+  function isInAppBrowser() {
+    const ua = navigator.userAgent || '';
+    return /WhatsApp|Instagram|FBAN|FBAV|Line\/|Twitter|Telegram/i.test(ua);
+  }
+
+  function renderOpenHint() {
+    const room = typeof TripSync !== 'undefined' ? TripSync.getRoomId() : null;
+    const fromLink = new URLSearchParams(location.search).get('g');
+    const parts = [];
+
+    if (isInAppBrowser()) {
+      parts.push('<div class="open-hint open-hint-warn">⚠️ פתחת מתוך וואטסאפ — הסנכרון לא תמיד עובד כאן.<br><strong>לחצי ⋯ למעלה → «פתיחה בדפדפן»</strong> (Safari / Chrome)</div>');
+    } else if (isStandalonePwa() && !fromLink) {
+      parts.push(`<div class="open-hint open-hint-warn">📱 נפתח מ<strong>מסך הבית</strong> — לפעמים זה גרסה ישנה.<br>אם חסרים סימונים: מחקי את האייקון, פתחי את הקישור בדפדפן, ואז «הוסף למסך הבית» מחדש.${room ? ` (קבוצה: ${esc(room)})` : ''}</div>`);
+    }
+
+    if (!room) {
+      parts.push('<div class="open-hint open-hint-warn">🔗 לסנכרון עם בעלך — פתחי את <strong>הקישור המלא</strong> ב-Safari/Chrome (עם הקוד בסוף), לא רק אייקון מהמסך.</div>');
+    }
+
+    return parts.join('');
+  }
+
+  async function initServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    try {
+      const reg = await navigator.serviceWorker.register('sw.js?v=19');
+      await reg.update();
+
+      const showUpdateBanner = () => {
+        const banner = document.getElementById('sw-update-banner');
+        if (banner) banner.hidden = false;
+      };
+
+      if (reg.waiting) showUpdateBanner();
+
+      reg.addEventListener('updatefound', () => {
+        const worker = reg.installing;
+        if (!worker) return;
+        worker.addEventListener('statechange', () => {
+          if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner();
+          }
+        });
+      });
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!window.__swReloading) {
+          window.__swReloading = true;
+          window.location.reload();
+        }
+      });
+
+      document.getElementById('sw-reload-btn')?.addEventListener('click', () => {
+        if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        else window.location.reload();
+      });
+    } catch { /* offline or blocked */ }
+  }
+
   function init() {
     document.getElementById('trip-title').textContent = TRIP.meta.title;
     document.title = TRIP.meta.shareTitle || TRIP.meta.title;
@@ -542,13 +607,15 @@
     updateBadges();
     openTodayDay();
     initSync();
+    initServiceWorker();
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') pullFromCloud(false);
+      if (document.visibilityState === 'visible') {
+        pullFromCloud(false);
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistration().then(r => r?.update());
+        }
+      }
     });
-
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=17').catch(() => {});
-    }
   }
 
   function applyHeroImage() {
@@ -692,6 +759,7 @@
 
     return `
       <div class="tab-panel active">
+        ${renderOpenHint()}
         ${alertHtml}
         ${todayHtml}
         ${TRIP.meta.gallery ? `
