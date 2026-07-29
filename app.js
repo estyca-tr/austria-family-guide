@@ -106,12 +106,16 @@
     const now = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     localStorage.setItem(STORAGE_KEY + '-ts', String(now));
-    if (!applyingRemote && typeof TripSync !== 'undefined' && TripSync.isConfigured() && TripSync.getRoomId()) {
+    if (!applyingRemote && typeof TripSync !== 'undefined' && TripSync.getRoomId()) {
       syncStatus = 'pending';
       updateSyncDot();
       TripSync.push(state).then(() => {
         syncStatus = 'live';
         updateSyncDot();
+        const urlEl = document.getElementById('group-share-url');
+        if (urlEl && !TripSync.hasCloud()) {
+          urlEl.textContent = TripSync.groupShareUrl(TripSync.getRoomId(), state);
+        }
       });
     }
   }
@@ -134,14 +138,13 @@
 
   function initSync() {
     if (typeof TripSync === 'undefined') return;
-    if (!TripSync.isConfigured()) {
+    TripSync.init(applyRemoteState);
+    const room = TripSync.getRoomId();
+    if (!room) {
       syncStatus = 'offline';
       updateSyncDot();
       return;
     }
-    TripSync.init(applyRemoteState);
-    const room = TripSync.getRoomId();
-    if (!room) return;
 
     TripSync.fetchOnce().then(remote => {
       if (remote && remote._ts) {
@@ -164,14 +167,8 @@
     const el = document.getElementById('sync-status-pill');
     if (!el) return;
     const room = typeof TripSync !== 'undefined' ? TripSync.getRoomId() : null;
-    const configured = typeof TripSync !== 'undefined' && TripSync.isConfigured();
-    if (!configured) {
-      el.textContent = 'סנכרון: לא מוגדר';
-      el.className = 'sync-pill sync-offline';
-      return;
-    }
     if (!room) {
-      el.textContent = 'סנכרון: בחרי קבוצה';
+      el.textContent = 'סנכרון: צרי קבוצה';
       el.className = 'sync-pill sync-warn';
       return;
     }
@@ -180,47 +177,22 @@
       el.className = 'sync-pill sync-pending';
       return;
     }
-    el.textContent = '🟢 מסונכרן · ' + room;
+    const mode = typeof TripSync !== 'undefined' && TripSync.hasCloud() ? 'אוטומטי' : 'קישור';
+    el.textContent = '🟢 ' + mode + ' · ' + room;
     el.className = 'sync-pill sync-live';
   }
 
   function renderGroupCard() {
-    const configured = typeof TripSync !== 'undefined' && TripSync.isConfigured();
     const room = typeof TripSync !== 'undefined' ? TripSync.getRoomId() : null;
-    const shareLink = room && typeof TripSync !== 'undefined' ? TripSync.groupShareUrl(room) : '';
-
-    if (!configured) {
-      return `
-        <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
-        <div class="card group-card">
-          <div class="card-title">שיתוף סימונים עם בעלך</div>
-          <p class="group-hint">כדי שמה שאת מסמנת יופיע אצלו בטלפון — צריך חיבור ענן חד-פעמי (חינם).</p>
-          <details class="firebase-setup">
-            <summary>הפעלת סנכרון (5 דקות, חד-פעמי)</summary>
-            <ol class="setup-steps">
-              <li>צרי פרויקט ב-<a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a></li>
-              <li>הוסיפי Web App → העתיקי את ה-config</li>
-              <li>בנהלי → Realtime Database → Create → Start in test mode</li>
-              <li>הדביקי את ה-JSON כאן:</li>
-            </ol>
-            <textarea id="firebase-config-input" class="firebase-config-input" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://xxx.firebaseio.com","projectId":"..."}'></textarea>
-            <button type="button" class="maps-btn" id="save-firebase-config-btn">שמירה והפעלה</button>
-          </details>
-          <p class="group-hint" style="margin-top:0.75rem">בינתיים — רק אחרי יצירת קבוצה אפשר לשלוח קישור לבעל</p>
-          <details class="group-advanced">
-            <summary>גיבוי ידני (לא לשליחה לבעל!)</summary>
-            <button type="button" class="maps-btn" style="background:var(--text-muted);margin-top:0.35rem" id="export-state-btn">גיבוי טכני (JSON)</button>
-            <button type="button" class="maps-btn" style="background:var(--green-light);margin-top:0.35rem" id="import-state-btn">ייבוא גיבוי</button>
-          </details>
-        </div>`;
-    }
+    const shareLink = room && typeof TripSync !== 'undefined' ? TripSync.groupShareUrl(room, state) : '';
+    const cloud = typeof TripSync !== 'undefined' && TripSync.hasCloud();
 
     if (!room) {
       return `
         <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
         <div class="card group-card group-card-active">
           <div class="card-title">צרו קבוצה משפחתית</div>
-          <p class="group-hint">אותו קוד = אותה רשימה (את + בעלך).<br>זוג אחר? יוצרים <strong>קבוצה חדשה</strong> — רשימה נפרדת לגמרי.</p>
+          <p class="group-hint">בלי הרשמות — פשוט לוחצים ושולחים לבעל בוואטסאפ.<br>זוג אחר = <strong>קבוצה חדשה</strong> (רשימה נפרדת).</p>
           <div class="group-actions">
             <button type="button" class="maps-btn" id="create-room-btn">✨ צרי קבוצה חדשה</button>
           </div>
@@ -238,18 +210,37 @@
       <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
       <div class="card group-card group-card-live">
         <div class="card-title">🟢 קבוצה פעילה: <span class="room-code">${esc(room)}</span></div>
-        <p class="group-hint">שלחי לבעל את הקישור למטה — לא את כפתור הגיבוי!</p>
+        ${cloud
+          ? '<p class="group-hint">סנכרון אוטומטי פעיל — בעלך רואה שינויים בזמן אמת.</p>'
+          : '<p class="group-hint"><strong>שלחי לבעל את הקישור</strong> — הוא יראה את הסימונים שלך.<br>אחרי שינויים חדשים — לחצי שוב «שלחי עדכון».</p>'}
         <div class="husband-link-box">
           <div class="husband-link-label">קישור לבעל:</div>
           <div class="share-url husband-link-url" id="group-share-url">${esc(shareLink)}</div>
         </div>
-        <button type="button" class="maps-btn husband-wa-btn" id="whatsapp-husband-btn">💬 שלחי לבעל בוואטסאפ</button>
-        <button type="button" class="maps-btn" id="copy-group-link-btn">📋 העתקת קישור בלבד</button>
+        <button type="button" class="maps-btn husband-wa-btn" id="whatsapp-husband-btn">💬 ${cloud ? 'שלחי לבעל בוואטסאפ' : 'שלחי / עדכני את בעלך בוואטסאפ'}</button>
+        <button type="button" class="maps-btn" id="copy-group-link-btn">📋 העתקת קישור</button>
+        ${cloud ? '' : `
+        <details class="group-advanced" open>
+          <summary>⚡ סנכרון אוטומטי (אופציונלי, בלי Google)</summary>
+          <p class="group-hint">הרשמה ב-<a href="https://supabase.com" target="_blank" rel="noopener">supabase.com</a> עם <strong>מייל</strong> (לא Google Cloud). פעם אחת — ואז בלי לשלוח שוב.</p>
+          <input class="add-input" type="url" id="supabase-url" placeholder="Project URL (https://xxx.supabase.co)" style="margin-bottom:0.35rem" />
+          <input class="add-input" type="text" id="supabase-key" placeholder="anon public key" style="margin-bottom:0.35rem" />
+          <button type="button" class="maps-btn" id="save-supabase-btn">הפעלת סנכרון אוטומטי</button>
+          <p class="group-hint" style="font-size:0.72rem">צריך גם ליצור טבלה — הוראות בלחיצה על «?» למטה</p>
+          <details style="margin-top:0.35rem">
+            <summary style="font-size:0.75rem;cursor:pointer">? איך יוצרים טבלה ב-Supabase</summary>
+            <ol class="setup-steps">
+              <li>supabase.com → Sign up עם מייל</li>
+              <li>New project → המתיני דקה</li>
+              <li>SQL Editor → הדביקי את הקוד מ-<code>supabase-setup.sql</code> בגיטהאב</li>
+              <li>Settings → API → העתיקי URL + anon key</li>
+            </ol>
+          </details>
+        </details>`}
         <details class="group-advanced">
-          <summary>זוג אחר / גיבוי ידני</summary>
-          <p class="group-hint">זוג אחר — קבוצה חדשה. גיבוי ידני = רק אם אין אינטרנט (לא לשליחה לבעל).</p>
+          <summary>זוג אחר / גיבוי</summary>
           <button type="button" class="maps-btn" style="background:#c44;margin-top:0.35rem" id="new-room-btn">קבוצה חדשה (זוג אחר)</button>
-          <button type="button" class="maps-btn" style="background:var(--text-muted);margin-top:0.35rem" id="export-state-btn">גיבוי טכני (JSON)</button>
+          <button type="button" class="maps-btn" style="background:var(--text-muted);margin-top:0.35rem" id="export-state-btn">גיבוי טכני (לא לבעל!)</button>
           <button type="button" class="maps-btn" style="background:var(--green-light);margin-top:0.35rem" id="import-state-btn">ייבוא גיבוי</button>
         </details>
       </div>`;
@@ -261,7 +252,7 @@
   }
 
   function openWhatsAppInvite(room) {
-    const link = TripSync.groupShareUrl(room);
+    const link = TripSync.groupShareUrl(room, state);
     const text = husbandInviteMessage(room, link);
     const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
     window.open(waUrl, '_blank', 'noopener');
@@ -284,24 +275,20 @@
   }
 
   function bindGroupEvents() {
-    document.getElementById('save-firebase-config-btn')?.addEventListener('click', () => {
-      const raw = document.getElementById('firebase-config-input')?.value?.trim();
-      if (!raw) return showToast('הדביקי את ה-config');
-      try {
-        const cfg = JSON.parse(raw);
-        if (!cfg.apiKey || !cfg.databaseURL) throw new Error('חסר apiKey או databaseURL');
-        TripSync.saveFirebaseConfig(cfg);
-        showToast('✓ סנכרון הופעל!');
-        initSync();
-        renderMain();
-      } catch (e) {
-        showToast('JSON לא תקין');
-      }
+    document.getElementById('save-supabase-btn')?.addEventListener('click', () => {
+      const url = document.getElementById('supabase-url')?.value?.trim();
+      const key = document.getElementById('supabase-key')?.value?.trim();
+      if (!url || !key) return showToast('מלאי URL ו-anon key');
+      TripSync.saveSupabase(url, key);
+      initSync();
+      TripSync.push(state);
+      showToast('✓ סנכרון אוטומטי הופעל!');
+      renderMain();
     });
 
     document.getElementById('create-room-btn')?.addEventListener('click', async () => {
       const code = TripSync.createRoom();
-      if (!code) return showToast('שגיאה — בדקי חיבור ענן');
+      if (!code) return showToast('שגיאה — בדקי חיבור לאינטרנט');
       await TripSync.push(state);
       showToast('✓ קבוצה נוצרה: ' + code);
       renderMain();
@@ -326,7 +313,7 @@
 
     document.getElementById('copy-group-link-btn')?.addEventListener('click', () => {
       const room = TripSync.getRoomId();
-      const link = TripSync.groupShareUrl(room);
+      const link = TripSync.groupShareUrl(room, state);
       navigator.clipboard.writeText(link).then(() => showToast('✓ הקישור הועתק')).catch(() => showToast(link));
     });
 
@@ -439,7 +426,7 @@
     initSync();
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=10').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=11').catch(() => {});
     }
   }
 

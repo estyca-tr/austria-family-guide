@@ -3,37 +3,45 @@ window.TripSync = (function () {
   'use strict';
 
   const ROOM_KEY = 'austria-trip-room';
-  const CONFIG_KEY = 'austria-trip-firebase-config';
-  let db = null;
+  const CONFIG_KEY = 'austria-supabase-config';
+  const POLL_MS = 3000;
   let roomId = null;
   let onRemoteCallback = null;
   let pushTimer = null;
+  let pollTimer = null;
   let lastAppliedTs = 0;
-  let subscribed = false;
 
-  function getFirebaseConfig() {
+  function getSupabase() {
     try {
       const stored = localStorage.getItem(CONFIG_KEY);
       if (stored) return JSON.parse(stored);
     } catch { /* ignore */ }
-    return window.FIREBASE_CONFIG || null;
+    if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+      return { url: window.SUPABASE_URL, key: window.SUPABASE_ANON_KEY };
+    }
+    return null;
   }
 
-  function saveFirebaseConfig(config) {
-    localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
-    window.FIREBASE_CONFIG = config;
+  function saveSupabase(url, key) {
+    const cfg = { url: url.replace(/\/$/, ''), key };
+    localStorage.setItem(CONFIG_KEY, JSON.stringify(cfg));
+    return cfg;
+  }
+
+  function hasCloud() {
+    const sb = getSupabase();
+    return !!(sb && sb.url && sb.key);
   }
 
   function isConfigured() {
-    const cfg = getFirebaseConfig();
-    return !!(cfg && cfg.apiKey && cfg.databaseURL);
+    return true;
   }
 
   function resolveRoomId() {
     const params = new URLSearchParams(location.search);
     const fromUrl = params.get('g');
     if (fromUrl) {
-      const code = fromUrl.trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+      const code = fromUrl.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       if (code.length >= 6) {
         localStorage.setItem(ROOM_KEY, code);
         return code;
@@ -46,20 +54,48 @@ window.TripSync = (function () {
     return roomId || resolveRoomId();
   }
 
-  function groupShareUrl(code) {
+  function groupShareUrl(code, state) {
     const base = (window.TRIP && window.TRIP.meta && window.TRIP.meta.shareUrl)
-      ? window.TRIP.meta.shareUrl.replace(/\?.*$/, '')
+      ? window.TRIP.meta.shareUrl.replace(/\?.*$/, '').replace(/#.*$/, '')
       : (location.origin + location.pathname);
     const url = new URL(base, location.origin);
     url.searchParams.set('g', code || getRoomId() || '');
+    if (state && !hasCloud()) {
+      url.hash = 's=' + encodeState(state);
+    }
     return url.toString();
+  }
+
+  function encodeState(state) {
+    const json = JSON.stringify({
+      checks: state.checks || {},
+      shopping: state.shopping || {},
+      custom: state.custom || {},
+      _ts: Date.now(),
+    });
+    return btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decodeStateHash() {
+    const hash = location.hash || '';
+    const m = hash.match(/[#&]s=([^&]+)/);
+    if (!m) return null;
+    try {
+      let b64 = m[1].replace(/-/g, '+').replace(/_/g, '/');
+      while (b64.length % 4) b64 += '=';
+      return JSON.parse(decodeURIComponent(escape(atob(b64))));
+    } catch {
+      return null;
+    }
   }
 
   function updateUrl(code) {
     const url = new URL(location.href);
     if (code) url.searchParams.set('g', code);
     else url.searchParams.delete('g');
-    history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+    url.hash = '';
+    history.replaceState({}, '', url.pathname + url.search);
   }
 
   function generateRoomId() {
@@ -69,94 +105,148 @@ window.TripSync = (function () {
     return id;
   }
 
-  function ensureDb() {
-    if (db) return true;
-    const cfg = getFirebaseConfig();
-    if (!cfg || typeof firebase === 'undefined') return false;
-    if (!firebase.apps.length) firebase.initializeApp(cfg);
-    db = firebase.database();
-    return true;
+  async function supabaseFetch(room) {
+    const sb = getSupabase();
+    if (!sb) return null;
+    const endpoint = sb.url + '/rest/v1/trip_states?room_id=eq.' + encodeURIComponent(room) + '&select=*';
+    try {
+      const res = await fetch(endpoint, {
+        headers: { apikey: sb.key, Authorization: 'Bearer ' + sb.key },
+        cache: 'no-store',
+      });
+      if (!res.ok) return null;
+      const rows = await res.json();
+      return rows[0] || null;
+    } catch {
+      return null;
+    }
   }
 
-  function subscribe() {
-    if (!ensureDb() || !roomId || subscribed) return;
-    const ref = db.ref('trips/' + roomId + '/state');
-    ref.off();
-    ref.on('value', snap => {
-      const val = snap.val();
-      if (!val || typeof val !== 'object') return;
-      const ts = val._ts || 0;
-      if (ts <= lastAppliedTs) return;
-      lastAppliedTs = ts;
-      const payload = { checks: val.checks || {}, shopping: val.shopping || {}, custom: val.custom || {} };
-      if (onRemoteCallback) onRemoteCallback(payload, ts);
-    });
-    subscribed = true;
+  async function supabasePush(room, state) {
+    const sb = getSupabase();
+    if (!sb) return;
+    const ts = Date.now();
+    const body = {
+      room_id: room,
+      checks: state.checks || {},
+      shopping: state.shopping || {},
+      custom: state.custom || {},
+      updated_at: ts,
+    };
+    try {
+      await fetch(sb.url + '/rest/v1/trip_states', {
+        method: 'POST',
+        headers: {
+          apikey: sb.key,
+          Authorization: 'Bearer ' + sb.key,
+          'Content-Type': 'application/json',
+          Prefer: 'resolution=merge-duplicates',
+        },
+        body: JSON.stringify(body),
+      });
+    } catch { /* offline */ }
+    lastAppliedTs = ts;
+  }
+
+  async function fetchOnce() {
+    const room = getRoomId();
+    if (!room) return null;
+    if (hasCloud()) {
+      const row = await supabaseFetch(room);
+      if (!row) return null;
+      return {
+        checks: row.checks || {},
+        shopping: row.shopping || {},
+        custom: row.custom || {},
+        _ts: row.updated_at || 0,
+      };
+    }
+    return decodeStateHash();
+  }
+
+  function startPolling() {
+    stopPolling();
+    if (!getRoomId() || !hasCloud()) return;
+    pollTimer = setInterval(async () => {
+      const remote = await fetchOnce();
+      if (!remote || !remote._ts) return;
+      if (remote._ts <= lastAppliedTs) return;
+      lastAppliedTs = remote._ts;
+      if (onRemoteCallback) {
+        onRemoteCallback({
+          checks: remote.checks || {},
+          shopping: remote.shopping || {},
+          custom: remote.custom || {},
+        }, remote._ts);
+      }
+    }, POLL_MS);
+  }
+
+  function stopPolling() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
   }
 
   function init(onRemote) {
     onRemoteCallback = onRemote;
     roomId = resolveRoomId();
-    if (!isConfigured()) return { ok: false, reason: 'no-config', roomId };
-    if (!ensureDb()) return { ok: false, reason: 'no-sdk', roomId };
-    if (roomId) subscribe();
-    return { ok: true, roomId, enabled: !!roomId };
+
+    const fromHash = decodeStateHash();
+    if (fromHash && fromHash._ts) {
+      lastAppliedTs = fromHash._ts;
+      onRemote(fromHash, fromHash._ts);
+    }
+
+    if (roomId && hasCloud()) startPolling();
+    return { ok: true, roomId, enabled: !!roomId, cloud: hasCloud() };
   }
 
   function createRoom() {
-    if (!ensureDb()) return null;
     roomId = generateRoomId();
     localStorage.setItem(ROOM_KEY, roomId);
     updateUrl(roomId);
-    subscribed = false;
-    subscribe();
+    if (hasCloud()) startPolling();
     return roomId;
   }
 
   function joinRoom(code) {
-    if (!ensureDb()) return null;
-    code = (code || '').trim().toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    code = (code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (code.length < 6) return null;
     roomId = code;
-    localStorage.setItem(ROOM_KEY, roomId);
-    updateUrl(roomId);
-    subscribed = false;
-    subscribe();
+    localStorage.setItem(ROOM_KEY, code);
+    updateUrl(code);
+    if (hasCloud()) startPolling();
     return roomId;
   }
 
   function leaveRoom() {
-    if (db && roomId) db.ref('trips/' + roomId + '/state').off();
+    stopPolling();
     roomId = null;
-    subscribed = false;
     localStorage.removeItem(ROOM_KEY);
     updateUrl(null);
   }
 
   function push(state) {
-    if (!ensureDb() || !roomId) return Promise.resolve();
+    if (!roomId) return Promise.resolve();
     clearTimeout(pushTimer);
     return new Promise(resolve => {
-      pushTimer = setTimeout(() => {
-        const ts = Date.now();
-        lastAppliedTs = ts;
-        db.ref('trips/' + roomId + '/state').set({
-          checks: state.checks || {},
-          shopping: state.shopping || {},
-          custom: state.custom || {},
-          _ts: ts,
-        }).then(resolve).catch(resolve);
+      pushTimer = setTimeout(async () => {
+        if (hasCloud()) {
+          await supabasePush(roomId, state);
+        }
+        resolve();
       }, 350);
     });
   }
 
-  function fetchOnce() {
-    if (!ensureDb() || !roomId) return Promise.resolve(null);
-    return db.ref('trips/' + roomId + '/state').once('value').then(s => s.val());
-  }
-
   function bumpLastApplied(ts) {
     lastAppliedTs = ts || Date.now();
+  }
+
+  function usesCloudSync() {
+    return hasCloud();
   }
 
   return {
@@ -170,8 +260,10 @@ window.TripSync = (function () {
     resolveRoomId,
     groupShareUrl,
     isConfigured,
-    getFirebaseConfig,
-    saveFirebaseConfig,
+    hasCloud: usesCloudSync,
+    getSupabase,
+    saveSupabase,
     bumpLastApplied,
+    encodeState,
   };
 })();

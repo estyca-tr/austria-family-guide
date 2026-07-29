@@ -1,7 +1,7 @@
-const CACHE = 'austria-trip-v10';
+const CACHE = 'austria-trip-v11';
 const ASSETS = [
-  './', './index.html', './styles.css?v=9', './app.js?v=9', './data.js?v=9',
-  './places.js?v=9', './sync.js?v=9', './firebase-config.js?v=9',
+  './', './index.html', './styles.css?v=11', './app.js?v=11', './data.js?v=11',
+  './places.js?v=11', './sync.js?v=11', './sync-config.js?v=11',
   './manifest.json', './icon.svg',
 ];
 
@@ -22,7 +22,9 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  const isAppFile = /\.(js|css|html)(\?|$)/.test(url.pathname + url.search) || url.pathname.endsWith('/austria-family-guide/') || url.pathname.endsWith('/austria-family-guide');
+  const isAppFile = /\.(js|css|html)(\?|$)/.test(url.pathname + url.search)
+    || url.pathname.endsWith('/austria-family-guide/')
+    || url.pathname.endsWith('/austria-family-guide');
 
   if (isAppFile) {
     e.respondWith(

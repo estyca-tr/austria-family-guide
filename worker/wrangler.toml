@@ -1,0 +1,7 @@
+name = "austria-trip-sync"
+main = "sync-worker.js"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "SYNC_KV"
+id = "00000000000000000000000000000000"
