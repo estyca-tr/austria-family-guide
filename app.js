@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '28';
+  const APP_VERSION = '29';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -199,14 +199,7 @@
   async function initSync() {
     if (typeof TripSync === 'undefined') return;
 
-    const urlCode = new URLSearchParams(location.search).get('g');
-    const normalizedUrl = urlCode
-      ? urlCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
-      : '';
-    const storedBefore = localStorage.getItem('austria-trip-room');
-    const isFirstJoinViaLink = !!(normalizedUrl.length >= 6 && storedBefore !== normalizedUrl);
-
-    TripSync.init(applyRemoteState);
+    TripSync.init(applyRemoteFromPoll);
     const room = TripSync.getRoomId();
     if (!room) {
       syncStatus = 'offline';
@@ -214,34 +207,18 @@
       return;
     }
 
-    const remote = await TripSync.fetchOnce();
-    if (remote?.error) {
-      syncStatus = 'error';
-      updateSyncDot();
-      return;
-    }
-
-    const meta = getSyncMeta();
-    const remoteTs = remote._ts || 0;
-    const localEditTs = meta.lastLocalEdit || 0;
-
-    if (localEditTs > remoteTs) {
-      await TripSync.push(state);
-      const fresh = await TripSync.fetchOnce();
-      if (fresh && !fresh.error) {
-        TripSync.bumpLastApplied(fresh._ts || Date.now());
-        applyRemoteState(fresh, fresh._ts, true);
-      }
-    } else {
-      TripSync.bumpLastApplied(remoteTs);
-      applyRemoteState(remote, remoteTs, true);
-    }
-
+    await syncWithCloud(false);
     syncStatus = 'live';
     updateSyncDot();
   }
 
-  async function pullFromCloud(notify, force) {
+  function applyRemoteFromPoll(remote, remoteTs) {
+    const cloudMarks = countMarksInState(remote);
+    const localMarks = countMarksInState(state);
+    applyRemoteState(remote, remoteTs, cloudMarks > localMarks);
+  }
+
+  async function syncWithCloud(notify) {
     if (typeof TripSync === 'undefined' || !TripSync.getRoomId()) {
       if (notify) showToast('אין קבוצה פעילה');
       return;
@@ -282,18 +259,44 @@
       return;
     }
 
-    const markCount = Object.keys(remote.checks || {}).filter((k) => remote.checks[k]).length
-      + Object.keys(remote.shopping || {}).filter((k) => remote.shopping[k]).length;
-    const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
     const meta = getSyncMeta();
+    const remoteTs = remote._ts || 0;
     const localEditTs = meta.lastLocalEdit || 0;
-    const cloudIsNewer = remote._ts > (meta.lastAppliedRemote || 0);
-    const localNotNewerThanCloud = localEditTs <= remote._ts;
-    const needsApply = force || (cloudIsNewer && localNotNewerThanCloud);
+    const localMarks = countMarksInState(state);
+    const cloudMarks = countMarksInState(remote);
+    const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
 
-    if (needsApply) {
-      TripSync.bumpLastApplied(remote._ts);
-      applyRemoteState(remote, remote._ts, force || localNotNewerThanCloud);
+    if (cloudMarks > localMarks) {
+      TripSync.bumpLastApplied(remoteTs);
+      applyRemoteState(remote, remoteTs, true);
+      syncStatus = 'live';
+      updateSyncDot();
+      if (notify) showToast(`✓ שוחזר מהענן · ${cloudMarks} סימונים`);
+      return;
+    }
+
+    if (localMarks > cloudMarks || localEditTs > remoteTs) {
+      const ok = await TripSync.push(state);
+      if (ok === false) {
+        syncStatus = 'error';
+        updateSyncDot();
+        if (notify) showToast('סנכרון נכשל — בדקי אינטרנט');
+        return;
+      }
+      const fresh = await TripSync.fetchOnce();
+      if (fresh && !fresh.error) {
+        TripSync.bumpLastApplied(fresh._ts || Date.now());
+        setSyncMeta({ lastAppliedRemote: fresh._ts || Date.now() });
+      }
+      syncStatus = 'live';
+      updateSyncDot();
+      if (notify) showToast(`✓ נשמר בענן · ${localMarks} סימונים`);
+      return;
+    }
+
+    if (remoteTs > (meta.lastAppliedRemote || 0)) {
+      TripSync.bumpLastApplied(remoteTs);
+      applyRemoteState(remote, remoteTs, true);
     }
 
     syncStatus = 'live';
@@ -302,13 +305,26 @@
     if (!notify) return;
 
     const after = JSON.stringify({ checks: state.checks, shopping: state.shopping });
-    if (markCount === 0) {
-      showToast('✓ מחובר — אין סימונים בענן. סמני פריט ולחצי שוב');
-    } else if (needsApply && before !== after) {
-      showToast(`✓ עודכן מהענן · ${markCount} סימונים`);
+    if (cloudMarks === 0 && localMarks === 0) {
+      showToast('✓ מחובר — אין סימונים בענן');
+    } else if (before !== after) {
+      showToast(`✓ עודכן · ${countMarksInState(state)} סימונים`);
     } else {
-      showToast(`✓ מסונכרן · ${markCount} סימונים בענן`);
+      showToast(`✓ מסונכרן · ${cloudMarks} סימונים בענן`);
     }
+  }
+
+  async function pullFromCloud(notify, force) {
+    if (force) {
+      const remote = await TripSync.fetchOnce();
+      if (remote && !remote.error && remote._ts) {
+        TripSync.bumpLastApplied(remote._ts);
+        applyRemoteState(remote, remote._ts, true);
+        if (notify) showToast(`✓ עודכן מהענן · ${countMarksInState(remote)} סימונים`);
+        return;
+      }
+    }
+    await syncWithCloud(notify);
   }
 
   function updateSyncDot() {
@@ -372,7 +388,7 @@
         </div>
         <button type="button" class="maps-btn husband-wa-btn" id="whatsapp-husband-btn">💬 ${cloud ? 'שלחי לבעל בוואטסאפ' : 'שלחי / עדכני את בעלך בוואטסאפ'}</button>
         <button type="button" class="maps-btn" id="copy-group-link-btn">📋 העתקת קישור</button>
-        ${cloud ? '<button type="button" class="maps-btn" id="sync-refresh-btn" style="background:var(--green-light);margin-top:0.35rem">🔄 רענן עכשיו מהענן</button>' : ''}
+        ${cloud ? '<button type="button" class="maps-btn" id="sync-refresh-btn" style="background:var(--green-light);margin-top:0.35rem">🔄 סנכרן עכשיו</button>' : ''}
         ${cloud ? `
         <div class="couple-invite-box">
           <p class="group-hint"><strong>זוג שמטייל איתכם?</strong> שלחי להם את המדריך — הם רק יוצרים קבוצה חדשה (בלי הגדרות טכניות).</p>
@@ -498,7 +514,7 @@
         refreshBtn.disabled = true;
         const label = refreshBtn.textContent;
         refreshBtn.textContent = '⏳ מרענן...';
-        await pullFromCloud(true, true);
+        await syncWithCloud(true);
         refreshBtn.disabled = false;
         refreshBtn.textContent = label;
       };
@@ -694,7 +710,7 @@
     initServiceWorker();
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
-        pullFromCloud(false);
+        syncWithCloud(false);
         if ('serviceWorker' in navigator) {
           navigator.serviceWorker.getRegistration().then(r => r?.update());
         }
@@ -775,7 +791,7 @@
         currentTab = btn.dataset.tab;
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        if (currentTab === 'shopping') await pullFromCloud(false, true);
+        if (currentTab === 'shopping') await syncWithCloud(false);
         renderMain();
         if (currentTab === 'days') openTodayDay();
       });
