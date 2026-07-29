@@ -542,6 +542,61 @@ body {
 
 .add-btn:active { transform: scale(0.95); }
 
+.add-section-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--green);
+  margin-top: 0.6rem;
+  margin-bottom: 0.25rem;
+}
+
+.shopping-quick-add {
+  border: 2px solid var(--green);
+  background: var(--green-pale);
+  margin-bottom: 0.75rem;
+}
+
+.shopping-quick-add .card-title {
+  color: var(--green-dark);
+}
+
+.quick-add-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0 0 0.5rem;
+}
+
+.add-select {
+  width: 100%;
+  border: 1px solid var(--green-light);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+  margin-bottom: 0.5rem;
+}
+
+.shop-quick-row {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.add-btn-wide {
+  width: auto;
+  min-width: 64px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  padding: 0 0.75rem;
+}
+
+.empty-cat-hint {
+  font-size: 0.8rem;
+  color: var(--green);
+  margin: 0.25rem 0;
+}
+
 .del-btn {
   flex-shrink: 0;
   width: 28px;

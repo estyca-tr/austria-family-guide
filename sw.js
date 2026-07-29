@@ -1,5 +1,5 @@
-const CACHE = 'austria-trip-v7';
-const ASSETS = ['./', './index.html', './styles.css', './app.js', './data.js', './places.js', './manifest.json', './icon.svg'];
+const CACHE = 'austria-trip-v8';
+const ASSETS = ['./', './index.html', './styles.css?v=8', './app.js?v=8', './data.js?v=8', './places.js?v=8', './manifest.json', './icon.svg'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
@@ -16,7 +16,22 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
-  );
+  if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  const isAppFile = /\.(js|css|html)(\?|$)/.test(url.pathname + url.search) || url.pathname.endsWith('/austria-family-guide/') || url.pathname.endsWith('/austria-family-guide');
+
+  if (isAppFile) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          const copy = res.clone();
+          caches.open(CACHE).then(c => c.put(e.request, copy));
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  e.respondWith(caches.match(e.request).then(cached => cached || fetch(e.request)));
 });

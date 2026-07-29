@@ -55,12 +55,44 @@
   }
 
   function renderAddBar(opts) {
-    const { type, cat, day, placeholder, withTime } = opts;
+    const { type, cat, day, placeholder, withTime, label } = opts;
     return `
+      ${label ? `<div class="add-section-label">${esc(label)}</div>` : ''}
       <div class="add-bar" data-add-type="${esc(type)}" data-add-cat="${esc(cat || '')}" data-add-day="${esc(day || '')}">
         ${withTime ? '<input class="add-input add-input-time" type="text" inputmode="numeric" placeholder="שעה" maxlength="8" />' : ''}
         <input class="add-input add-input-text" type="text" placeholder="${esc(placeholder)}" />
         <button type="button" class="add-btn" aria-label="הוסף">+</button>
+      </div>`;
+  }
+
+  function addShoppingItem(catId, text) {
+    const customCat = (state.custom.shoppingCats || []).find(c => c.id === catId);
+    if (customCat) {
+      if (!customCat.items) customCat.items = [];
+      customCat.items.push({ id: uid(), text });
+    } else {
+      if (!state.custom.shopping[catId]) state.custom.shopping[catId] = [];
+      state.custom.shopping[catId].push({ id: uid(), text });
+    }
+  }
+
+  function renderShoppingQuickAdd() {
+    const cats = [
+      ...TRIP.shopping.map(c => ({ id: c.id, name: c.name })),
+      ...(state.custom.shoppingCats || []).map(c => ({ id: c.id, name: c.name + ' (שלי)' })),
+    ];
+    const options = cats.map(c =>
+      `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+
+    return `
+      <div class="card shopping-quick-add">
+        <div class="card-title">➕ הוסיפי פריט לרשימת קניות</div>
+        <p class="quick-add-hint">בחרי קטגוריה, כתבי מה לקנות, ולחצי הוסף</p>
+        <select class="add-select" id="shop-quick-cat" aria-label="קטגוריה">${options}</select>
+        <div class="shop-quick-row">
+          <input class="add-input add-input-text" type="text" id="shop-quick-text" placeholder="למשל: חלב סויה, במבה..." />
+          <button type="button" class="add-btn add-btn-wide" id="shop-quick-btn">הוסף</button>
+        </div>
       </div>`;
   }
 
@@ -131,7 +163,7 @@
     openTodayDay();
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=8').catch(() => {});
     }
   }
 
@@ -437,7 +469,6 @@
         const key = shoppingKey(cat.id, item);
         return showPending ? !state.shopping[key] : true;
       });
-      if (!allItems.length && showPending) return '';
 
       const totalInCat = cat.items.length + customShoppingList(cat.id).length;
       const catDone = [...cat.items, ...customShoppingList(cat.id).map(c => c.text)]
@@ -446,14 +477,16 @@
       const itemsHtml = allItems.map(({ item, custom, customId }) =>
         renderShoppingItem(cat.id, item, custom, customId)).join('');
 
+      const emptyPending = showPending && !allItems.length;
+
       return `
         <div class="card">
           <div class="shopping-cat-title">
             <span>${esc(cat.name)}</span>
             <span class="cat-progress">${catDone}/${totalInCat}</span>
           </div>
-          ${itemsHtml}
-          ${renderAddBar({ type: 'shop', cat: cat.id, placeholder: 'הוסיפי ל' + cat.name + '...' })}
+          ${emptyPending ? '<p class="empty-cat-hint">הכל נקנה בקטגוריה זו ✓</p>' : itemsHtml}
+          ${renderAddBar({ type: 'shop', cat: cat.id, placeholder: 'הוסיפי ל' + cat.name + '...', label: '➕ הוסיפי פריט' })}
         </div>`;
     }).join('');
 
@@ -478,16 +511,18 @@
 
     return `
       <div class="tab-panel active">
+        ${renderShoppingQuickAdd()}
         ${progressBar(done, total, 'סה"כ קניות')}
         <div class="filter-pills">
           <button class="filter-pill ${shoppingFilter === 'all' ? 'active' : ''}" data-shop-filter="all">הכל</button>
           <button class="filter-pill ${shoppingFilter === 'pending' ? 'active' : ''}" data-shop-filter="pending">נשאר לקנות (${total - done})</button>
         </div>
-        <div class="tip-box">לחצי לסמן ✓ · השורה עם + להוספת פריטים משלך</div>
+        <div class="tip-box">לחצי פריט לסמן ✓ שנקנת · למטה בכל קטגוריה או למעלה — להוסיף חדש</div>
         ${catsHtml}
         ${customCatsHtml}
         <div class="card add-cat-card">
-          ${renderAddBar({ type: 'shop-cat', placeholder: 'שם קטגוריה חדשה (למשל: חטיפים לדרך)' })}
+          <div class="add-section-label">➕ קטגוריה חדשה לגמרי</div>
+          ${renderAddBar({ type: 'shop-cat', placeholder: 'שם קטגוריה (למשל: חטיפים לדרך)' })}
         </div>
         ${!catsHtml && !customCatsHtml && showPending ? '<div class="card" style="text-align:center;color:var(--green)">🎉 הכל נקנה!</div>' : ''}
       </div>`;
@@ -788,14 +823,7 @@
         if (!text) return;
 
         if (type === 'shop') {
-          const customCat = (state.custom.shoppingCats || []).find(c => c.id === cat);
-          if (customCat) {
-            if (!customCat.items) customCat.items = [];
-            customCat.items.push({ id: uid(), text });
-          } else {
-            if (!state.custom.shopping[cat]) state.custom.shopping[cat] = [];
-            state.custom.shopping[cat].push({ id: uid(), text });
-          }
+          addShoppingItem(cat, text);
         } else if (type === 'shop-cat') {
           const id = uid();
           if (!state.custom.shoppingCats) state.custom.shoppingCats = [];
@@ -829,6 +857,26 @@
         if (e.key === 'Enter') { e.preventDefault(); submit(); }
       });
     });
+
+    const quickBtn = document.getElementById('shop-quick-btn');
+    const quickText = document.getElementById('shop-quick-text');
+    const quickCat = document.getElementById('shop-quick-cat');
+    if (quickBtn) {
+      const submitQuick = () => {
+        const text = (quickText?.value || '').trim();
+        const catId = quickCat?.value;
+        if (!text || !catId) return;
+        addShoppingItem(catId, text);
+        if (quickText) quickText.value = '';
+        saveState();
+        renderMain();
+        showToast('✓ נוסף לרשימה');
+      };
+      quickBtn.addEventListener('click', e => { e.stopPropagation(); submitQuick(); });
+      quickText?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submitQuick(); }
+      });
+    }
 
     document.querySelectorAll('.del-btn').forEach(btn => {
       btn.addEventListener('click', e => {
