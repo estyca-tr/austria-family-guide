@@ -229,12 +229,31 @@ window.TripSync = (function () {
     const sb = getSupabase();
     if (!sb) return false;
 
+    const existing = await supabaseFetch(room);
+    const existingShopping = existing.ok && existing.row ? (existing.row.shopping || {}) : {};
+    const existingChecks = existing.ok && existing.row ? (existing.row.checks || {}) : {};
+    const localShopping = compactMarks(state.shopping);
+    const localChecks = compactMarks(state.checks);
+    const cloudMarkCount = Object.values(existingShopping).filter(Boolean).length
+      + Object.values(existingChecks).filter(Boolean).length;
+    const localMarkCount = Object.keys(localShopping).length + Object.keys(localChecks).length;
+
+    if (localMarkCount === 0 && cloudMarkCount > 3) {
+      return false;
+    }
+
     const ts = Date.now();
     const body = {
       room_id: room,
-      checks: compactMarks(state.checks),
-      shopping: compactMarks(state.shopping),
-      custom: state.custom || {},
+      checks: localMarkCount >= Object.values(existingChecks).filter(Boolean).length
+        ? localChecks
+        : { ...compactMarks(existingChecks), ...localChecks },
+      shopping: localMarkCount >= Object.values(existingShopping).filter(Boolean).length
+        ? localShopping
+        : { ...compactMarks(existingShopping), ...localShopping },
+      custom: (existing.ok && existing.row && existing.row.custom && localMarkCount === 0)
+        ? existing.row.custom
+        : (state.custom || {}),
       updated_at: ts,
     };
     try {

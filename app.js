@@ -162,13 +162,9 @@
     }
 
     applyingRemote = true;
-    const remoteShopping = {};
-    for (const [k, v] of Object.entries(remote.shopping || {})) {
-      remoteShopping[normKey(k)] = v;
-    }
     state = {
-      checks: { ...(remote.checks || {}) },
-      shopping: remoteShopping,
+      checks: { ...(remote.checks || {}), ...(state.checks || {}) },
+      shopping: mergeShoppingMarks(state.shopping, remote.shopping),
       custom: mergeCustom(state.custom, remote.custom),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -305,8 +301,9 @@
       if (cloudMarks > localMarks && !recentlyEditedLocally()) {
         TripSync.bumpLastApplied(remoteTs);
         applyRemoteState(remote, remoteTs, true);
+        shoppingFilter = 'all';
         syncStatus = 'live';
-        if (notify) showToast(`✓ שוחזר מהענן · ${cloudMarks} סימונים`);
+        if (notify) showToast(`✓ שוחזרו ${cloudMarks} פריטים — לחצי "נקנה ✓" לראות`);
         return true;
       }
 
@@ -647,6 +644,17 @@
 
   function normKey(s) {
     return String(s == null ? '' : s).normalize('NFC');
+  }
+
+  function mergeShoppingMarks(local, remote) {
+    const out = {};
+    for (const [k, v] of Object.entries(remote || {})) {
+      if (v) out[normKey(k)] = true;
+    }
+    for (const [k, v] of Object.entries(local || {})) {
+      if (v) out[normKey(k)] = true;
+    }
+    return out;
   }
 
   function dayImage(day) {
