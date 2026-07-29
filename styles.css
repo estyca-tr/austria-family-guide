@@ -597,6 +597,19 @@ body {
   margin: 0.25rem 0;
 }
 
+.filter-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: #fff8e6;
+  border-radius: 8px;
+}
+
+.shopping-search {
+  margin: 0.5rem 0;
+}
+
 /* Family sync */
 .sync-pill {
   display: inline-block;
@@ -802,7 +815,8 @@ body {
 
 .check-item:last-child { border-bottom: none; }
 
-.check-item.done .check-text { opacity: 0.5; text-decoration: line-through; }
+.check-item.done .check-text,
+.check-item.done .check-title { opacity: 0.55; text-decoration: line-through; }
 
 .check-box {
   width: 22px;

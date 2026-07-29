@@ -7,6 +7,7 @@
   let currentTab = 'home';
   let moreSubTab = 'stay';
   let shoppingFilter = 'all';
+  let shoppingSearch = '';
   let applyingRemote = false;
   let syncStatus = 'offline'; // offline | live | pending
 
@@ -150,12 +151,38 @@
     }
   }
 
+  function mergeBoolMaps(local, remote) {
+    const out = { ...(local || {}) };
+    for (const [k, v] of Object.entries(remote || {})) {
+      if (v) out[k] = true;
+      else if (!(k in out)) out[k] = v;
+    }
+    return out;
+  }
+
+  function mergeCustom(local, remote) {
+    const base = { ...defaultCustom(), ...(local || {}) };
+    const incoming = { ...defaultCustom(), ...(remote || {}) };
+    return {
+      ...base,
+      shopping: { ...incoming.shopping, ...base.shopping },
+      dayNotes: { ...incoming.dayNotes, ...base.dayNotes },
+      stayNotes: { ...incoming.stayNotes, ...base.stayNotes },
+      activities: { ...incoming.activities, ...base.activities },
+      pretrip: { ...incoming.pretrip, ...base.pretrip },
+      forget: [...(incoming.forget || []), ...(base.forget || [])],
+      bookings: [...(incoming.bookings || []), ...(base.bookings || [])],
+      budget: [...(incoming.budget || []), ...(base.budget || [])],
+      shoppingCats: [...(incoming.shoppingCats || []), ...(base.shoppingCats || [])],
+    };
+  }
+
   function applyRemoteState(remote, remoteTs) {
     applyingRemote = true;
     state = {
-      checks: remote.checks || {},
-      shopping: remote.shopping || {},
-      custom: { ...defaultCustom(), ...(remote.custom || {}) },
+      checks: mergeBoolMaps(state.checks, remote.checks),
+      shopping: mergeBoolMaps(state.shopping, remote.shopping),
+      custom: mergeCustom(state.custom, remote.custom),
     };
     const ts = remoteTs || remote._ts || Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -187,18 +214,8 @@
 
     TripSync.fetchOnce().then(remote => {
       if (remote && remote._ts) {
-        const remoteHasData = stateHasMarks(remote);
-        const localHasData = stateHasMarks(state);
-        // In a shared room: always load cloud on first open via link, or when cloud has
-        // marks and local is empty, or when cloud is newer than last applied remote.
-        const meta = getSyncMeta();
-        const cloudIsNewer = remote._ts > (meta.lastAppliedRemote || 0);
-        if (isFirstJoinViaLink || (remoteHasData && !localHasData) || cloudIsNewer) {
-          TripSync.bumpLastApplied(remote._ts);
-          applyRemoteState(remote, remote._ts);
-        } else {
-          TripSync.push(state);
-        }
+        TripSync.bumpLastApplied(remote._ts);
+        applyRemoteState(remote, remote._ts);
       } else if (!isFirstJoinViaLink && stateHasMarks(state)) {
         TripSync.push(state);
       }
@@ -530,7 +547,7 @@
     });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=16').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=17').catch(() => {});
     }
   }
 
@@ -815,6 +832,11 @@
       </div>`;
   }
 
+  function itemMatchesSearch(text) {
+    if (!shoppingSearch.trim()) return true;
+    return text.includes(shoppingSearch.trim());
+  }
+
   function renderShoppingItem(catId, item, isCustom, customId) {
     const key = shoppingKey(catId, item);
     const isDone = state.shopping[key];
@@ -836,8 +858,11 @@
       const builtIn = cat.items.map(item => ({ item, custom: false }));
       const extra = customShoppingList(cat.id).map(c => ({ item: c.text, custom: true, customId: c.id }));
       const allItems = [...builtIn, ...extra].filter(({ item }) => {
+        if (!itemMatchesSearch(item)) return false;
         const key = shoppingKey(cat.id, item);
-        return showPending ? !state.shopping[key] : true;
+        if (shoppingFilter === 'pending') return !state.shopping[key];
+        if (shoppingFilter === 'done') return !!state.shopping[key];
+        return true;
       });
 
       const totalInCat = cat.items.length + customShoppingList(cat.id).length;
@@ -848,6 +873,8 @@
         renderShoppingItem(cat.id, item, custom, customId)).join('');
 
       const emptyPending = showPending && !allItems.length;
+
+      if (!allItems.length && (shoppingSearch.trim() || shoppingFilter !== 'all')) return '';
 
       return `
         <div class="card">
@@ -862,8 +889,11 @@
 
     const customCatsHtml = (state.custom.shoppingCats || []).map(cat => {
       const items = (cat.items || []).filter(c => {
+        if (!itemMatchesSearch(c.text)) return false;
         const key = shoppingKey(cat.id, c.text);
-        return showPending ? !state.shopping[key] : true;
+        if (shoppingFilter === 'pending') return !state.shopping[key];
+        if (shoppingFilter === 'done') return !!state.shopping[key];
+        return true;
       });
       const totalInCat = (cat.items || []).length;
       const catDone = (cat.items || []).filter(c => state.shopping[shoppingKey(cat.id, c.text)]).length;
@@ -883,10 +913,13 @@
       <div class="tab-panel active">
         ${renderShoppingQuickAdd()}
         ${progressBar(done, total, 'סה"כ קניות')}
+        <input class="add-input shopping-search" type="search" id="shopping-search" placeholder="🔍 חיפוש ברשימה (למשל: שוקולד, חלב...)" value="${esc(shoppingSearch)}" />
         <div class="filter-pills">
-          <button class="filter-pill ${shoppingFilter === 'all' ? 'active' : ''}" data-shop-filter="all">הכל</button>
+          <button class="filter-pill ${shoppingFilter === 'all' ? 'active' : ''}" data-shop-filter="all">הכל (${total})</button>
           <button class="filter-pill ${shoppingFilter === 'pending' ? 'active' : ''}" data-shop-filter="pending">נשאר לקנות (${total - done})</button>
+          <button class="filter-pill ${shoppingFilter === 'done' ? 'active' : ''}" data-shop-filter="done">נקנה ✓ (${done})</button>
         </div>
+        ${showPending ? '<p class="filter-hint">💡 פריטים שסומנו ✓ מוסתרים כאן — לחצי «הכל» או «נקנה»</p>' : ''}
         <div class="tip-box">לחצי פריט לסמן ✓ שנקנת · למטה בכל קטגוריה או למעלה — להוסיף חדש</div>
         ${catsHtml}
         ${customCatsHtml}
@@ -1331,6 +1364,16 @@
         renderMain();
         showToast(state.shopping[key] ? '✓ נקנה' : 'הוסר מהרשימה');
       });
+    });
+
+    document.getElementById('shopping-search')?.addEventListener('input', e => {
+      shoppingSearch = e.target.value;
+      renderMain();
+      const input = document.getElementById('shopping-search');
+      if (input) {
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
     });
 
     document.querySelectorAll('[data-shop-filter]').forEach(el => {
