@@ -1,4 +1,4 @@
-const CACHE = 'austria-trip-v17';
+const CACHE = 'austria-trip-v18';
 const ASSETS = [
   './', './index.html', './styles.css?v=13', './app.js?v=13', './data.js?v=13',
   './places.js?v=13', './sync.js?v=13', './sync-config.js?v=13',

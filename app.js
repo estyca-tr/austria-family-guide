@@ -617,10 +617,11 @@
 
   function bindNav() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         currentTab = btn.dataset.tab;
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+        if (currentTab === 'shopping') await pullFromCloud(false);
         renderMain();
         if (currentTab === 'days') openTodayDay();
       });
@@ -920,7 +921,7 @@
           <button class="filter-pill ${shoppingFilter === 'done' ? 'active' : ''}" data-shop-filter="done">נקנה ✓ (${done})</button>
         </div>
         ${showPending ? '<p class="filter-hint">💡 פריטים שסומנו ✓ מוסתרים כאן — לחצי «הכל» או «נקנה»</p>' : ''}
-        <div class="tip-box">לחצי פריט לסמן ✓ שנקנת · למטה בכל קטגוריה או למעלה — להוסיף חדש</div>
+        <div class="tip-box">לחצי פריט לסמן ✓ שנקנת · <strong>ממרח שוקולד</strong> נמצא בקטגוריה <strong>יבשים</strong> (לא סופר)</div>
         ${catsHtml}
         ${customCatsHtml}
         <div class="card add-cat-card">
