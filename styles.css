@@ -697,7 +697,20 @@ body {
   font-size: 0.7rem;
 }
 
+.couple-invite-box {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
 .husband-wa-btn {
+  width: 100%;
+  background: #25d366 !important;
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
   width: 100%;
   background: #25d366 !important;
   font-size: 1rem;

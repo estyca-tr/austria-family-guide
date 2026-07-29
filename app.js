@@ -219,6 +219,11 @@
         </div>
         <button type="button" class="maps-btn husband-wa-btn" id="whatsapp-husband-btn">💬 ${cloud ? 'שלחי לבעל בוואטסאפ' : 'שלחי / עדכני את בעלך בוואטסאפ'}</button>
         <button type="button" class="maps-btn" id="copy-group-link-btn">📋 העתקת קישור</button>
+        ${cloud ? `
+        <div class="couple-invite-box">
+          <p class="group-hint"><strong>זוג שמטייל איתכם?</strong> שלחי להם את המדריך — הם רק יוצרים קבוצה חדשה (בלי הגדרות טכניות).</p>
+          <button type="button" class="maps-btn" style="background:#25d366;width:100%" id="whatsapp-couple-btn">👫 שלחי לזוג אחר (וואטסאפ)</button>
+        </div>` : ''}
         ${cloud ? '' : `
         <details class="group-advanced" open>
           <summary>⚡ סנכרון אוטומטי (אופציונלי, בלי Google)</summary>
@@ -244,6 +249,24 @@
           <button type="button" class="maps-btn" style="background:var(--green-light);margin-top:0.35rem" id="import-state-btn">ייבוא גיבוי</button>
         </details>
       </div>`;
+  }
+
+  function otherCoupleInviteMessage() {
+    const base = (TRIP.meta && TRIP.meta.shareUrl) ? TRIP.meta.shareUrl.replace(/\?.*$/, '').replace(/#.*$/, '') : 'https://estyca-tr.github.io/austria-family-guide/';
+    return 'היי! 🏔️\n'
+      + 'מדריך הטיול שלנו לאוסטריה:\n'
+      + base + '\n\n'
+      + 'הוראות (2 דקות, בלי הגדרות טכניות):\n'
+      + '1️⃣ נכנסים לקישור\n'
+      + '2️⃣ בית → סנכרון משפחתי → «צרו קבוצה חדשה»\n'
+      + '   ⚠️ חשוב: קבוצה שלכם! לא להצטרף לקבוצה שלנו\n'
+      + '3️⃣ שולחים את הקישור לבן/בת הזוג — מסתנכרן אוטומטית ביניכם\n\n'
+      + 'בהצלחה! 🇦🇹';
+  }
+
+  function openWhatsAppOtherCouple() {
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(otherCoupleInviteMessage());
+    window.open(waUrl, '_blank', 'noopener');
   }
 
   function husbandInviteMessage(room, link) {
@@ -284,6 +307,10 @@
       TripSync.push(state);
       showToast('✓ סנכרון אוטומטי הופעל!');
       renderMain();
+    });
+
+    document.getElementById('whatsapp-couple-btn')?.addEventListener('click', () => {
+      openWhatsAppOtherCouple();
     });
 
     document.getElementById('create-room-btn')?.addEventListener('click', async () => {
@@ -426,7 +453,7 @@
     initSync();
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=11').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=12').catch(() => {});
     }
   }
 

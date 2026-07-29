@@ -1,4 +1,4 @@
-/* Cloud sync — Supabase (email signup at supabase.com, NOT Google Cloud).
-   Leave empty to use WhatsApp link sync (works immediately, no signup). */
-window.SUPABASE_URL = '';
-window.SUPABASE_ANON_KEY = '';
+/* Supabase — מוגדר פעם אחת לכולם (משפחה + זוג חברים).
+   ה-anon key בטוח לשיתוף (מיועד לאפליקציה). */
+window.SUPABASE_URL = 'https://oannwkfrypmgptywjhty.supabase.co';
+window.SUPABASE_ANON_KEY = ''; /* הדביקי כאן את anon public מ-Supabase → API Keys */
