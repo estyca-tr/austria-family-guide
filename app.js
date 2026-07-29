@@ -206,11 +206,12 @@
             <textarea id="firebase-config-input" class="firebase-config-input" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://xxx.firebaseio.com","projectId":"..."}'></textarea>
             <button type="button" class="maps-btn" id="save-firebase-config-btn">שמירה והפעלה</button>
           </details>
-          <p class="group-hint" style="margin-top:0.75rem">בינתיים: <strong>ייצוא / ייבוא</strong> למטה (וואטסאפ)</p>
-          <div class="group-actions">
-            <button type="button" class="maps-btn" id="export-state-btn">📤 ייצוא סימונים</button>
-            <button type="button" class="maps-btn" style="background:var(--green-light)" id="import-state-btn">📥 ייבוא סימונים</button>
-          </div>
+          <p class="group-hint" style="margin-top:0.75rem">בינתיים — רק אחרי יצירת קבוצה אפשר לשלוח קישור לבעל</p>
+          <details class="group-advanced">
+            <summary>גיבוי ידני (לא לשליחה לבעל!)</summary>
+            <button type="button" class="maps-btn" style="background:var(--text-muted);margin-top:0.35rem" id="export-state-btn">גיבוי טכני (JSON)</button>
+            <button type="button" class="maps-btn" style="background:var(--green-light);margin-top:0.35rem" id="import-state-btn">ייבוא גיבוי</button>
+          </details>
         </div>`;
     }
 
@@ -230,10 +231,6 @@
               <button type="button" class="add-btn add-btn-wide" id="join-room-btn">הצטרפי</button>
             </div>
           </div>
-          <div class="group-actions" style="margin-top:0.5rem">
-            <button type="button" class="maps-btn" style="background:var(--text-muted)" id="export-state-btn">📤 ייצוא גיבוי</button>
-            <button type="button" class="maps-btn" style="background:var(--green-light)" id="import-state-btn">📥 ייבוא גיבוי</button>
-          </div>
         </div>`;
     }
 
@@ -241,22 +238,33 @@
       <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
       <div class="card group-card group-card-live">
         <div class="card-title">🟢 קבוצה פעילה: <span class="room-code">${esc(room)}</span></div>
-        <p class="group-hint">כל סימון ✓, קניות והערות — משותפים בזמן אמת עם מי שבאותה קבוצה.</p>
-        <div class="share-url" id="group-share-url">${esc(shareLink)}</div>
-        <div class="group-actions">
-          <button type="button" class="maps-btn" id="copy-group-link-btn">📋 שלחי לבעל (קישור + קוד)</button>
-          <button type="button" class="maps-btn" style="background:var(--green-light)" id="share-group-native-btn">↗️ שיתוף</button>
+        <p class="group-hint">שלחי לבעל את הקישור למטה — לא את כפתור הגיבוי!</p>
+        <div class="husband-link-box">
+          <div class="husband-link-label">קישור לבעל:</div>
+          <div class="share-url husband-link-url" id="group-share-url">${esc(shareLink)}</div>
         </div>
+        <button type="button" class="maps-btn husband-wa-btn" id="whatsapp-husband-btn">💬 שלחי לבעל בוואטסאפ</button>
+        <button type="button" class="maps-btn" id="copy-group-link-btn">📋 העתקת קישור בלבד</button>
         <details class="group-advanced">
-          <summary>זוג אחר / איפוס קבוצה</summary>
-          <p class="group-hint">זוג שמטייל באותו מסלול אבל רוצה רשימה משלו — יוצרים קבוצה חדשה (קוד אחר).</p>
-          <button type="button" class="maps-btn" style="background:#c44;margin-top:0.5rem" id="new-room-btn">קבוצה חדשה (זוג אחר)</button>
+          <summary>זוג אחר / גיבוי ידני</summary>
+          <p class="group-hint">זוג אחר — קבוצה חדשה. גיבוי ידני = רק אם אין אינטרנט (לא לשליחה לבעל).</p>
+          <button type="button" class="maps-btn" style="background:#c44;margin-top:0.35rem" id="new-room-btn">קבוצה חדשה (זוג אחר)</button>
+          <button type="button" class="maps-btn" style="background:var(--text-muted);margin-top:0.35rem" id="export-state-btn">גיבוי טכני (JSON)</button>
+          <button type="button" class="maps-btn" style="background:var(--green-light);margin-top:0.35rem" id="import-state-btn">ייבוא גיבוי</button>
         </details>
-        <div class="group-actions" style="margin-top:0.5rem">
-          <button type="button" class="maps-btn" style="background:var(--text-muted)" id="export-state-btn">📤 גיבוי</button>
-          <button type="button" class="maps-btn" style="background:var(--green-light)" id="import-state-btn">📥 ייבוא</button>
-        </div>
       </div>`;
+  }
+
+  function husbandInviteMessage(room, link) {
+    return 'היי! 🏔️ המדריך שלנו לאוסטריה — לחץ על הקישור ונהיה באותה רשימה (קניות, סימונים):\n\n'
+      + (link || '') + '\n\nקוד קבוצה: ' + (room || '');
+  }
+
+  function openWhatsAppInvite(room) {
+    const link = TripSync.groupShareUrl(room);
+    const text = husbandInviteMessage(room, link);
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(text);
+    window.open(waUrl, '_blank', 'noopener');
   }
 
   function exportStateJson() {
@@ -297,6 +305,7 @@
       await TripSync.push(state);
       showToast('✓ קבוצה נוצרה: ' + code);
       renderMain();
+      setTimeout(() => openWhatsAppInvite(code), 600);
     });
 
     document.getElementById('join-room-btn')?.addEventListener('click', async () => {
@@ -318,8 +327,13 @@
     document.getElementById('copy-group-link-btn')?.addEventListener('click', () => {
       const room = TripSync.getRoomId();
       const link = TripSync.groupShareUrl(room);
-      const text = 'המדריך שלנו לאוסטריה — הצטרף לקבוצה שלנו:\n' + link + '\n(קוד: ' + room + ')';
-      navigator.clipboard.writeText(text).then(() => showToast('✓ הועתק לבעל!')).catch(() => showToast(text));
+      navigator.clipboard.writeText(link).then(() => showToast('✓ הקישור הועתק')).catch(() => showToast(link));
+    });
+
+    document.getElementById('whatsapp-husband-btn')?.addEventListener('click', () => {
+      const room = TripSync.getRoomId();
+      if (!room) return showToast('צרי קבוצה קודם');
+      openWhatsAppInvite(room);
     });
 
     document.getElementById('share-group-native-btn')?.addEventListener('click', async () => {
@@ -346,11 +360,10 @@
 
     document.getElementById('export-state-btn')?.addEventListener('click', () => {
       const json = exportStateJson();
-      const msg = 'העתיקי ושלחי בוואטסאפ לבעל:\n\n' + json;
       if (navigator.clipboard) {
-        navigator.clipboard.writeText(json).then(() => showToast('✓ הועתק — שלחי לבעל')).catch(() => prompt('העתיקי:', json));
+        navigator.clipboard.writeText(json).then(() => showToast('גיבוי טכני הועתק (לא לבעל!)')).catch(() => prompt('גיבוי:', json));
       } else {
-        prompt('העתיקי ושלחי:', json);
+        prompt('גיבוי טכני:', json);
       }
     });
 
@@ -426,7 +439,7 @@
     initSync();
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=9').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=10').catch(() => {});
     }
   }
 

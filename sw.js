@@ -1,4 +1,4 @@
-const CACHE = 'austria-trip-v9';
+const CACHE = 'austria-trip-v10';
 const ASSETS = [
   './', './index.html', './styles.css?v=9', './app.js?v=9', './data.js?v=9',
   './places.js?v=9', './sync.js?v=9', './firebase-config.js?v=9',
