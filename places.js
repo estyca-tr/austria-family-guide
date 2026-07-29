@@ -109,4 +109,16 @@ const PLACES = {
     maps: "https://maps.google.com/?q=Shefa+Market+Vienna",
     image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
   },
+  primarkSCS: {
+    name: "Primark — Shopping City Süd",
+    web: "https://www.shoppingcitysuess.at",
+    maps: "https://maps.google.com/?q=Primark+Shopping+City+S%C3%BCd+V%C3%B6sendorf",
+    image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&q=80",
+  },
+  primarkMariahilf: {
+    name: "Primark — Mariahilfer Straße",
+    web: "https://www.primark.com",
+    maps: "https://maps.google.com/?q=Primark+Mariahilfer+Stra%C3%9Fe+Vienna",
+    image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&q=80",
+  },
 };

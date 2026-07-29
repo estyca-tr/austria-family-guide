@@ -474,6 +474,138 @@ body {
   white-space: nowrap;
 }
 
+.activity-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.activity-custom {
+  background: var(--green-pale);
+  margin: 0 -0.5rem;
+  padding: 0.5rem;
+  border-radius: 8px;
+  border-bottom: none;
+}
+
+.custom-tag {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  background: var(--green);
+  color: #fff;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+
+.item-custom .check-content { flex: 1; }
+
+.add-bar {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+  align-items: center;
+}
+
+.add-input {
+  flex: 1;
+  border: 1px dashed var(--green-light);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.add-input-time {
+  flex: 0 0 52px;
+  text-align: center;
+}
+
+.add-btn {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.add-btn:active { transform: scale(0.95); }
+
+.del-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.del-btn:active { background: #fee; color: #c33; border-color: #fcc; }
+
+.day-note-wrap {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--border);
+}
+
+.day-note-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
+}
+
+.day-note-input {
+  width: 100%;
+  min-height: 64px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  resize: vertical;
+  background: var(--bg);
+  box-sizing: border-box;
+}
+
+.add-cat-card {
+  border: 1px dashed var(--green-light);
+  background: var(--green-pale);
+}
+
+.budget-row.item-custom {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.shopping-cat-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.shopping-cat-title .del-btn { margin-right: auto; }
+
 .day-footer {
   margin-top: 0.5rem;
   font-size: 0.8rem;

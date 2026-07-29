@@ -1,19 +1,71 @@
 (function () {
   'use strict';
 
-  const STORAGE_KEY = 'austria-trip-2026-v2';
+  const STORAGE_KEY = 'austria-trip-2026-v3';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
   let shoppingFilter = 'all';
 
+  function defaultCustom() {
+    return {
+      shopping: {},
+      shoppingCats: [],
+      activities: {},
+      dayNotes: {},
+      stayNotes: {},
+      forget: [],
+      pretrip: {},
+      budget: [],
+      bookings: [],
+    };
+  }
+
   function loadState() {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      return saved || { checks: {}, shopping: {} };
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+      return {
+        checks: saved.checks || {},
+        shopping: saved.shopping || {},
+        custom: { ...defaultCustom(), ...(saved.custom || {}) },
+      };
     } catch {
-      return { checks: {}, shopping: {} };
+      return { checks: {}, shopping: {}, custom: defaultCustom() };
     }
+  }
+
+  function uid() {
+    return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  }
+
+  function customShoppingList(catId) {
+    return state.custom.shopping[catId] || [];
+  }
+
+  function allShoppingItems() {
+    const items = [];
+    TRIP.shopping.forEach(cat => {
+      cat.items.forEach(item => items.push({ catId: cat.id, item, custom: false }));
+      customShoppingList(cat.id).forEach(c => items.push({ catId: cat.id, item: c.text, custom: true, customId: c.id }));
+    });
+    (state.custom.shoppingCats || []).forEach(cat => {
+      (cat.items || []).forEach(c => items.push({ catId: cat.id, item: c.text, custom: true, customId: c.id }));
+    });
+    return items;
+  }
+
+  function renderAddBar(opts) {
+    const { type, cat, day, placeholder, withTime } = opts;
+    return `
+      <div class="add-bar" data-add-type="${esc(type)}" data-add-cat="${esc(cat || '')}" data-add-day="${esc(day || '')}">
+        ${withTime ? '<input class="add-input add-input-time" type="text" inputmode="numeric" placeholder="שעה" maxlength="8" />' : ''}
+        <input class="add-input add-input-text" type="text" placeholder="${esc(placeholder)}" />
+        <button type="button" class="add-btn" aria-label="הוסף">+</button>
+      </div>`;
+  }
+
+  function renderDeleteBtn(dataAttr, id) {
+    return `<button type="button" class="del-btn" data-${dataAttr}="${esc(id)}" aria-label="מחק">×</button>`;
   }
 
   function saveState() {
@@ -58,14 +110,6 @@
 
   function shoppingKey(catId, item) {
     return `shop-${catId}-${item}`;
-  }
-
-  function allShoppingItems() {
-    const items = [];
-    TRIP.shopping.forEach(cat => {
-      cat.items.forEach(item => items.push({ catId: cat.id, item }));
-    });
-    return items;
   }
 
   function shoppingProgress() {
@@ -137,7 +181,9 @@
   }
 
   function pendingBookings() {
-    return TRIP.bookings.filter(b => b.priority !== 'optional' && !state.checks['booking-' + b.id]).length;
+    const builtIn = TRIP.bookings.filter(b => b.priority !== 'optional' && !state.checks['booking-' + b.id]).length;
+    const custom = (state.custom.bookings || []).filter(b => !state.checks['booking-custom-' + b.id]).length;
+    return builtIn + custom;
   }
 
   function updateBadges() {
@@ -203,7 +249,9 @@
     const today = getTodayDay();
     const critical = TRIP.bookings.filter(b => b.priority === 'critical' && !state.checks['booking-' + b.id]);
     const shop = shoppingProgress();
-    const dontDone = TRIP.dontForget.filter(i => state.checks['forget-' + i.id]).length;
+    const dontDone = TRIP.dontForget.filter(i => state.checks['forget-' + i.id]).length
+      + (state.custom.forget || []).filter(i => state.checks['forget-custom-' + i.id]).length;
+    const dontTotal = TRIP.dontForget.length + (state.custom.forget || []).length;
 
     let todayHtml = '';
     if (today) {
@@ -262,7 +310,7 @@
         <div class="section-title">סטטוס הכנות</div>
         <div class="card">
           ${progressBar(shop.done, shop.total, 'רשימת קניות')}
-          ${progressBar(dontDone, TRIP.dontForget.length, 'לא לשכוח (וואטסאפ)')}
+          ${progressBar(dontDone, dontTotal, 'לא לשכוח (וואטסאפ)')}
         </div>
         <div class="section-title">טיסות</div>
         <div class="card">
@@ -297,16 +345,27 @@
 
     const daysHtml = TRIP.days.map(d => {
       const img = dayImage(d);
-      const activities = d.activities.map(a => `
-        <div class="activity">
-          <span class="activity-time">${esc(a.time)}</span>
+      const customActs = (state.custom.activities[d.id] || []);
+      const allActivities = [
+        ...d.activities.map(a => ({ ...a, custom: false })),
+        ...customActs.map(a => ({ ...a, custom: true })),
+      ];
+
+      const activities = allActivities.map(a => `
+        <div class="activity ${a.custom ? 'activity-custom' : ''}">
+          <span class="activity-time">${esc(a.time || '—')}</span>
           <div class="activity-info">
-            <div class="activity-name">${esc(a.name)}</div>
+            <div class="activity-name">${a.custom ? '<span class="custom-tag">שלי</span> ' : ''}${esc(a.name)}</div>
             ${a.notes ? `<div class="activity-notes">${esc(a.notes)}</div>` : ''}
-            ${renderLinks(a)}
+            ${a.custom ? '' : renderLinks(a)}
           </div>
-          ${a.price ? `<span class="activity-price">${esc(a.price)}</span>` : ''}
+          <div class="activity-side">
+            ${a.price ? `<span class="activity-price">${esc(a.price)}</span>` : ''}
+            ${a.custom ? renderDeleteBtn('del-activity', a.id) : ''}
+          </div>
         </div>`).join('');
+
+      const dayNote = state.custom.dayNotes[d.id] || '';
 
       const checklist = d.dailyChecklist ? `
         <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px dashed var(--border)">
@@ -328,6 +387,11 @@
           </div>
           <div class="day-body">
             ${activities}
+            ${renderAddBar({ type: 'activity', day: d.id, placeholder: 'הוסיפי פעילות...', withTime: true })}
+            <div class="day-note-wrap">
+              <label class="day-note-label">📝 הערות אישיות ליום</label>
+              <textarea class="day-note-input" data-day-note="${esc(d.id)}" placeholder="רעיונות, שינויים, תזכורות...">${esc(dayNote)}</textarea>
+            </div>
             ${checklist}
             <div class="day-footer">
               ${d.totalEstimate ? `<span class="badge badge-medium">💰 ${esc(d.totalEstimate)}</span>` : ''}
@@ -343,8 +407,22 @@
         <div class="section-title">מה כלול בכרטיס</div>
         <div class="card">${coverage}</div>
         <div class="section-title">מסלול יום-יום</div>
+        <div class="tip-box">💡 בכל יום אפשר להוסיף פעילויות והערות אישיות — נשמר בטלפון</div>
         ${daysHtml}
         <div class="tip-box">${esc(TRIP.friendPlanNote)}</div>
+      </div>`;
+  }
+
+  function renderShoppingItem(catId, item, isCustom, customId) {
+    const key = shoppingKey(catId, item);
+    const isDone = state.shopping[key];
+    return `
+      <div class="check-item ${isDone ? 'done' : ''} ${isCustom ? 'item-custom' : ''}" data-shop="${esc(key)}">
+        <div class="check-box">${isDone ? '✓' : ''}</div>
+        <div class="check-content">
+          <div class="check-title">${isCustom ? '<span class="custom-tag">+</span> ' : ''}${esc(item)}</div>
+        </div>
+        ${isCustom ? renderDeleteBtn('del-shop', customId) : ''}
       </div>`;
   }
 
@@ -353,32 +431,48 @@
     const showPending = shoppingFilter === 'pending';
 
     const catsHtml = TRIP.shopping.map(cat => {
-      const catItems = cat.items.filter(item => {
+      const builtIn = cat.items.map(item => ({ item, custom: false }));
+      const extra = customShoppingList(cat.id).map(c => ({ item: c.text, custom: true, customId: c.id }));
+      const allItems = [...builtIn, ...extra].filter(({ item }) => {
         const key = shoppingKey(cat.id, item);
-        const isDone = state.shopping[key];
-        return showPending ? !isDone : true;
+        return showPending ? !state.shopping[key] : true;
       });
-      if (!catItems.length) return '';
+      if (!allItems.length && showPending) return '';
 
-      const catDone = cat.items.filter(item => state.shopping[shoppingKey(cat.id, item)]).length;
+      const totalInCat = cat.items.length + customShoppingList(cat.id).length;
+      const catDone = [...cat.items, ...customShoppingList(cat.id).map(c => c.text)]
+        .filter(item => state.shopping[shoppingKey(cat.id, item)]).length;
 
-      const itemsHtml = catItems.map(item => {
-        const key = shoppingKey(cat.id, item);
-        const isDone = state.shopping[key];
-        return `
-          <div class="check-item ${isDone ? 'done' : ''}" data-shop="${esc(key)}">
-            <div class="check-box">${isDone ? '✓' : ''}</div>
-            <div class="check-content"><div class="check-title">${esc(item)}</div></div>
-          </div>`;
-      }).join('');
+      const itemsHtml = allItems.map(({ item, custom, customId }) =>
+        renderShoppingItem(cat.id, item, custom, customId)).join('');
 
       return `
         <div class="card">
           <div class="shopping-cat-title">
             <span>${esc(cat.name)}</span>
-            <span class="cat-progress">${catDone}/${cat.items.length}</span>
+            <span class="cat-progress">${catDone}/${totalInCat}</span>
           </div>
           ${itemsHtml}
+          ${renderAddBar({ type: 'shop', cat: cat.id, placeholder: 'הוסיפי ל' + cat.name + '...' })}
+        </div>`;
+    }).join('');
+
+    const customCatsHtml = (state.custom.shoppingCats || []).map(cat => {
+      const items = (cat.items || []).filter(c => {
+        const key = shoppingKey(cat.id, c.text);
+        return showPending ? !state.shopping[key] : true;
+      });
+      const totalInCat = (cat.items || []).length;
+      const catDone = (cat.items || []).filter(c => state.shopping[shoppingKey(cat.id, c.text)]).length;
+      return `
+        <div class="card">
+          <div class="shopping-cat-title">
+            <span>${esc(cat.name)} <span class="custom-tag">קטגוריה שלי</span></span>
+            <span class="cat-progress">${catDone}/${totalInCat}</span>
+            ${renderDeleteBtn('del-shop-cat', cat.id)}
+          </div>
+          ${items.map(c => renderShoppingItem(cat.id, c.text, true, c.id)).join('')}
+          ${renderAddBar({ type: 'shop', cat: cat.id, placeholder: 'הוסיפי פריט...' })}
         </div>`;
     }).join('');
 
@@ -389,8 +483,13 @@
           <button class="filter-pill ${shoppingFilter === 'all' ? 'active' : ''}" data-shop-filter="all">הכל</button>
           <button class="filter-pill ${shoppingFilter === 'pending' ? 'active' : ''}" data-shop-filter="pending">נשאר לקנות (${total - done})</button>
         </div>
-        <div class="tip-box">לחצי על פריט לסמן שקנית. הסימון נשמר בטלפון.</div>
-        ${catsHtml || '<div class="card" style="text-align:center;color:var(--green)">🎉 הכל נקנה!</div>'}
+        <div class="tip-box">לחצי לסמן ✓ · השורה עם + להוספת פריטים משלך</div>
+        ${catsHtml}
+        ${customCatsHtml}
+        <div class="card add-cat-card">
+          ${renderAddBar({ type: 'shop-cat', placeholder: 'שם קטגוריה חדשה (למשל: חטיפים לדרך)' })}
+        </div>
+        ${!catsHtml && !customCatsHtml && showPending ? '<div class="card" style="text-align:center;color:var(--green)">🎉 הכל נקנה!</div>' : ''}
       </div>`;
   }
 
@@ -417,10 +516,25 @@
       );
     }).join('');
 
+    const customBookingItems = (state.custom.bookings || []).map(b => {
+      const done = state.checks['booking-custom-' + b.id];
+      return `
+        <div class="check-item ${done ? 'done' : ''} item-custom" data-check="booking-custom-${esc(b.id)}">
+          <div class="check-box">${done ? '✓' : ''}</div>
+          <div class="check-content">
+            <div class="check-title"><span class="custom-tag">שלי</span> ${esc(b.what)}</div>
+            ${b.when ? `<div class="check-meta">⏰ ${esc(b.when)}</div>` : ''}
+            ${b.note ? `<div class="check-meta">${esc(b.note)}</div>` : ''}
+          </div>
+          ${renderDeleteBtn('del-booking', b.id)}
+        </div>`;
+    }).join('');
+
     return `
       <div class="tab-panel active">
         <div class="alert"><strong>הזמנות לפני ובמהלך הטיול</strong>לחצי לסמן ✓ — נשמר בטלפון</div>
-        <div class="card">${items}</div>
+        <div class="card">${items}${customBookingItems}</div>
+        ${renderAddBar({ type: 'booking', placeholder: 'הוסיפי תזכורת הזמנה...' })}
       </div>`;
   }
 
@@ -491,6 +605,10 @@
         ` : ''}
         ${contacts ? `<div class="section-title" style="margin-top:0.75rem">יצירת קשר</div>${contacts}` : ''}
         ${a.tips && a.tips.length ? `<div class="tip-box">${a.tips.map(t => esc(t)).join('<br>')}</div>` : ''}
+        <div class="day-note-wrap" style="margin-top:0.75rem">
+          <label class="day-note-label">📝 הערות אישיות (קוד כניסה, סכומים...)</label>
+          <textarea class="day-note-input" data-stay-note="${esc(a.id)}" placeholder="מספר אישור, קוד WiFi, תזכורות...">${esc(state.custom.stayNotes[a.id] || '')}</textarea>
+        </div>
         <div style="margin-top:0.6rem;display:flex;flex-wrap:wrap;gap:0.4rem">${links}</div>
       </div>`;
     }).join('');
@@ -498,30 +616,65 @@
 
   function renderDontForget() {
     const cats = [...new Set(TRIP.dontForget.map(i => i.cat))];
-    const done = TRIP.dontForget.filter(i => state.checks['forget-' + i.id]).length;
+    const allBuiltIn = TRIP.dontForget.length;
+    const customItems = state.custom.forget || [];
+    const doneBuiltIn = TRIP.dontForget.filter(i => state.checks['forget-' + i.id]).length;
+    const doneCustom = customItems.filter(i => state.checks['forget-custom-' + i.id]).length;
 
     const html = cats.map(cat => {
       const items = TRIP.dontForget.filter(i => i.cat === cat);
+      const customInCat = customItems.filter(i => i.cat === cat);
       return `
         <div class="card">
           <div class="shopping-cat-title"><span>${esc(cat)}</span></div>
           ${items.map(i => renderCheckItem('forget-' + i.id, esc(i.text), '', state.checks['forget-' + i.id])).join('')}
+          ${customInCat.map(i => `
+            <div class="check-item item-custom ${state.checks['forget-custom-' + i.id] ? 'done' : ''}" data-check="forget-custom-${esc(i.id)}">
+              <div class="check-box">${state.checks['forget-custom-' + i.id] ? '✓' : ''}</div>
+              <div class="check-content"><div class="check-title"><span class="custom-tag">+</span> ${esc(i.text)}</div></div>
+              ${renderDeleteBtn('del-forget', i.id)}
+            </div>`).join('')}
+          ${renderAddBar({ type: 'forget', cat, placeholder: 'הוסיפי ל' + cat + '...' })}
         </div>`;
     }).join('');
 
-    return `${progressBar(done, TRIP.dontForget.length, 'מוואטסאפ')}<div class="tip-box">רשימה מוואטסאפ + הערות משפחתיות</div>${html}`;
+    const personalCat = customItems.filter(i => i.cat === 'אישי');
+    const personalHtml = personalCat.length || true ? `
+      <div class="card">
+        <div class="shopping-cat-title"><span>אישי</span></div>
+        ${personalCat.map(i => `
+          <div class="check-item item-custom ${state.checks['forget-custom-' + i.id] ? 'done' : ''}" data-check="forget-custom-${esc(i.id)}">
+            <div class="check-box">${state.checks['forget-custom-' + i.id] ? '✓' : ''}</div>
+            <div class="check-content"><div class="check-title">${esc(i.text)}</div></div>
+            ${renderDeleteBtn('del-forget', i.id)}
+          </div>`).join('')}
+        ${renderAddBar({ type: 'forget', cat: 'אישי', placeholder: 'תזכורת אישית...' })}
+      </div>` : '';
+
+    return `${progressBar(doneBuiltIn + doneCustom, allBuiltIn + customItems.length, 'לא לשכוח')}
+      <div class="tip-box">לחצי + להוסיף תזכורות משלך</div>${html}${personalHtml}`;
   }
 
   function renderPreTripChecklist() {
     return TRIP.preTripChecklist.map(cat => {
-      const done = cat.items.filter((_, i) => state.checks[`pretrip-${cat.id}-${i}`]).length;
+      const extra = (state.custom.pretrip[cat.id] || []);
+      const allItems = [...cat.items, ...extra.map(e => e.text)];
+      const done = cat.items.filter((_, i) => state.checks[`pretrip-${cat.id}-${i}`]).length
+        + extra.filter(e => state.checks[`pretrip-custom-${e.id}`]).length;
       return `
         <div class="card">
           <div class="shopping-cat-title">
             <span>${esc(cat.name)}</span>
-            <span class="cat-progress">${done}/${cat.items.length}</span>
+            <span class="cat-progress">${done}/${allItems.length}</span>
           </div>
           ${cat.items.map((item, i) => renderCheckItem(`pretrip-${cat.id}-${i}`, esc(item), '', state.checks[`pretrip-${cat.id}-${i}`])).join('')}
+          ${extra.map(e => `
+            <div class="check-item item-custom ${state.checks['pretrip-custom-' + e.id] ? 'done' : ''}" data-check="pretrip-custom-${esc(e.id)}">
+              <div class="check-box">${state.checks['pretrip-custom-' + e.id] ? '✓' : ''}</div>
+              <div class="check-content"><div class="check-title"><span class="custom-tag">+</span> ${esc(e.text)}</div></div>
+              ${renderDeleteBtn('del-pretrip', e.id)}
+            </div>`).join('')}
+          ${renderAddBar({ type: 'pretrip', cat: cat.id, placeholder: 'הוסיפי ל' + cat.name + '...' })}
         </div>`;
     }).join('');
   }
@@ -572,16 +725,26 @@
   }
 
   function renderBudget() {
+    const customRows = (state.custom.budget || []).map(b => `
+      <div class="budget-row item-custom">
+        <span><span class="custom-tag">+</span> ${esc(b.name)}</span>
+        <span style="color:var(--text-muted);font-size:0.8rem">${esc(b.estimate || '⬜')}</span>
+        <span class="budget-paid">${esc(b.paid || '⬜')}</span>
+        ${renderDeleteBtn('del-budget', b.id)}
+      </div>`).join('');
+
     return `
       <div class="card">
         <div class="card-title">סיכום עלויות</div>
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">עמודת "שולם" — לעדכן ב-data.js</p>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">שורות עם + נוספו על ידך</p>
         ${TRIP.budget.categories.map(c => `
           <div class="budget-row">
             <span>${esc(c.name)}</span>
             <span style="color:var(--text-muted);font-size:0.8rem">${esc(c.estimate)}</span>
             <span class="budget-paid">${esc(c.paid)}</span>
           </div>`).join('')}
+        ${customRows}
+        ${renderAddBar({ type: 'budget', placeholder: 'הוסיפי שורת הוצאה (למשל: ביטוח נסיעות)' })}
       </div>`;
   }
 
@@ -609,6 +772,117 @@
         <div class="card-title">אפליקציות שימושיות</div>
         ${TRIP.apps.map(a => `<div class="app-card"><div class="app-name">${esc(a.name)}</div><div class="app-desc">${esc(a.desc)}</div></div>`).join('')}
       </div>`;
+  }
+
+  function bindCustomEvents() {
+    document.querySelectorAll('.add-bar').forEach(bar => {
+      const btn = bar.querySelector('.add-btn');
+      const textInput = bar.querySelector('.add-input-text');
+      const timeInput = bar.querySelector('.add-input-time');
+      const type = bar.dataset.addType;
+      const cat = bar.dataset.addCat;
+      const day = bar.dataset.addDay;
+
+      const submit = () => {
+        const text = (textInput?.value || '').trim();
+        if (!text) return;
+
+        if (type === 'shop') {
+          const customCat = (state.custom.shoppingCats || []).find(c => c.id === cat);
+          if (customCat) {
+            if (!customCat.items) customCat.items = [];
+            customCat.items.push({ id: uid(), text });
+          } else {
+            if (!state.custom.shopping[cat]) state.custom.shopping[cat] = [];
+            state.custom.shopping[cat].push({ id: uid(), text });
+          }
+        } else if (type === 'shop-cat') {
+          const id = uid();
+          if (!state.custom.shoppingCats) state.custom.shoppingCats = [];
+          state.custom.shoppingCats.push({ id, name: text, items: [] });
+        } else if (type === 'activity') {
+          if (!state.custom.activities[day]) state.custom.activities[day] = [];
+          state.custom.activities[day].push({
+            id: uid(),
+            time: (timeInput?.value || '').trim() || '—',
+            name: text,
+            notes: '',
+          });
+        } else if (type === 'forget') {
+          state.custom.forget.push({ id: uid(), cat: cat || 'אישי', text });
+        } else if (type === 'pretrip') {
+          if (!state.custom.pretrip[cat]) state.custom.pretrip[cat] = [];
+          state.custom.pretrip[cat].push({ id: uid(), text });
+        } else if (type === 'budget') {
+          state.custom.budget.push({ id: uid(), name: text, estimate: '⬜', paid: '⬜' });
+        } else if (type === 'booking') {
+          state.custom.bookings.push({ id: uid(), what: text, when: '', note: '' });
+        }
+
+        saveState();
+        renderMain();
+        showToast('✓ נוסף');
+      };
+
+      btn?.addEventListener('click', e => { e.stopPropagation(); submit(); });
+      textInput?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+      });
+    });
+
+    document.querySelectorAll('.del-btn').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const id = btn.dataset.delActivity || btn.dataset.delShop || btn.dataset.delShopCat
+          || btn.dataset.delForget || btn.dataset.delPretrip || btn.dataset.delBudget
+          || btn.dataset.delBooking;
+
+        if (btn.dataset.delActivity) {
+          Object.keys(state.custom.activities).forEach(dayId => {
+            state.custom.activities[dayId] = (state.custom.activities[dayId] || [])
+              .filter(a => a.id !== id);
+          });
+        } else if (btn.dataset.delShop) {
+          Object.keys(state.custom.shopping).forEach(catId => {
+            state.custom.shopping[catId] = (state.custom.shopping[catId] || [])
+              .filter(i => i.id !== id);
+          });
+          (state.custom.shoppingCats || []).forEach(c => {
+            if (c.items) c.items = c.items.filter(i => i.id !== id);
+          });
+        } else if (btn.dataset.delShopCat) {
+          state.custom.shoppingCats = (state.custom.shoppingCats || []).filter(c => c.id !== id);
+        } else if (btn.dataset.delForget) {
+          state.custom.forget = (state.custom.forget || []).filter(i => i.id !== id);
+        } else if (btn.dataset.delPretrip) {
+          Object.keys(state.custom.pretrip).forEach(catId => {
+            state.custom.pretrip[catId] = (state.custom.pretrip[catId] || [])
+              .filter(i => i.id !== id);
+          });
+        } else if (btn.dataset.delBudget) {
+          state.custom.budget = (state.custom.budget || []).filter(i => i.id !== id);
+        } else if (btn.dataset.delBooking) {
+          state.custom.bookings = (state.custom.bookings || []).filter(i => i.id !== id);
+        }
+
+        saveState();
+        renderMain();
+        showToast('נמחק');
+      });
+    });
+
+    document.querySelectorAll('.day-note-input').forEach(ta => {
+      const save = () => {
+        if (ta.dataset.dayNote) {
+          state.custom.dayNotes[ta.dataset.dayNote] = ta.value;
+        } else if (ta.dataset.stayNote) {
+          state.custom.stayNotes[ta.dataset.stayNote] = ta.value;
+        }
+        saveState();
+      };
+      ta.addEventListener('input', save);
+      ta.addEventListener('click', e => e.stopPropagation());
+    });
   }
 
   function bindDynamicEvents() {
@@ -666,8 +940,11 @@
         moreSubTab = el.dataset.moreTab;
         document.getElementById('sub-panel').innerHTML = renderSubPanel(moreSubTab);
         document.querySelectorAll('.more-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.moreTab === moreSubTab));
+        bindCustomEvents();
       });
     });
+
+    bindCustomEvents();
 
     const copyBtn = document.getElementById('copy-share-btn');
     if (copyBtn) {
