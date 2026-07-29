@@ -872,6 +872,14 @@ body {
   margin: 0.25rem 0 0.5rem;
 }
 
+.stay-maps-link {
+  color: var(--green);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.stay-maps-link:active { opacity: 0.85; }
+
 .stay-dates {
   display: flex;
   gap: 0.5rem;

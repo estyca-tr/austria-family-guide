@@ -109,9 +109,10 @@
     if (!applyingRemote && typeof TripSync !== 'undefined' && TripSync.getRoomId()) {
       syncStatus = 'pending';
       updateSyncDot();
-      TripSync.push(state).then(() => {
-        syncStatus = 'live';
+      TripSync.push(state).then(ok => {
+        syncStatus = ok === false ? 'error' : 'live';
         updateSyncDot();
+        if (ok === false) showToast('סנכרון נכשל — בדקי אינטרנט');
         const urlEl = document.getElementById('group-share-url');
         if (urlEl && !TripSync.hasCloud()) {
           urlEl.textContent = TripSync.groupShareUrl(TripSync.getRoomId(), state);
@@ -138,6 +139,14 @@
 
   function initSync() {
     if (typeof TripSync === 'undefined') return;
+
+    const urlCode = new URLSearchParams(location.search).get('g');
+    const normalizedUrl = urlCode
+      ? urlCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+      : '';
+    const storedBefore = localStorage.getItem('austria-trip-room');
+    const isFirstJoinViaLink = !!(normalizedUrl.length >= 6 && storedBefore !== normalizedUrl);
+
     TripSync.init(applyRemoteState);
     const room = TripSync.getRoomId();
     if (!room) {
@@ -149,13 +158,13 @@
     TripSync.fetchOnce().then(remote => {
       if (remote && remote._ts) {
         const localTs = parseInt(localStorage.getItem(STORAGE_KEY + '-ts') || '0', 10);
-        if (remote._ts >= localTs) {
+        if (isFirstJoinViaLink || remote._ts >= localTs) {
           TripSync.bumpLastApplied(remote._ts);
           applyRemoteState(remote);
         } else {
           TripSync.push(state);
         }
-      } else {
+      } else if (!isFirstJoinViaLink) {
         TripSync.push(state);
       }
       syncStatus = 'live';
@@ -175,6 +184,11 @@
     if (syncStatus === 'pending') {
       el.textContent = 'מסנכרן…';
       el.className = 'sync-pill sync-pending';
+      return;
+    }
+    if (syncStatus === 'error') {
+      el.textContent = '🔴 שגיאת סנכרון';
+      el.className = 'sync-pill sync-warn';
       return;
     }
     const mode = typeof TripSync !== 'undefined' && TripSync.hasCloud() ? 'אוטומטי' : 'קישור';
@@ -414,11 +428,18 @@
     return null;
   }
 
+  function activityMaps(a) {
+    if (a.maps) return a.maps;
+    if (typeof PLACES !== 'undefined' && a.placeKey && PLACES[a.placeKey]?.maps) return PLACES[a.placeKey].maps;
+    return null;
+  }
+
   function renderLinks(a) {
     const parts = [];
     if (a.book) parts.push(`<a class="link-btn link-book" href="${esc(a.book)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🎫 הזמנה</a>`);
     if (a.url) parts.push(`<a class="link-btn" href="${esc(a.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🌐 אתר</a>`);
-    if (a.maps) parts.push(`<a class="link-btn link-maps" href="${esc(a.maps)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 מפה</a>`);
+    const maps = activityMaps(a);
+    if (maps) parts.push(`<a class="link-btn link-maps" href="${esc(maps)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 מפה</a>`);
     return parts.length ? `<div class="activity-links">${parts.join('')}</div>` : '';
   }
 
@@ -426,6 +447,8 @@
     const parts = [];
     if (c.book) parts.push(`<a class="link-btn link-book" href="${esc(c.book)}" target="_blank" rel="noopener">🎫 הזמנה</a>`);
     if (c.url) parts.push(`<a class="link-btn" href="${esc(c.url)}" target="_blank" rel="noopener">🌐 אתר</a>`);
+    const maps = c.maps || (c.placeKey && typeof PLACES !== 'undefined' && PLACES[c.placeKey]?.maps);
+    if (maps) parts.push(`<a class="link-btn link-maps" href="${esc(maps)}" target="_blank" rel="noopener">📍 מפה</a>`);
     return parts.length ? `<div class="activity-links" style="margin-top:0.35rem">${parts.join('')}</div>` : '';
   }
 
@@ -919,7 +942,7 @@
       return `
       <div class="card">
         <div class="stay-name">${esc(a.name)}</div>
-        <div class="stay-address">📍 ${esc(a.address)}</div>
+        <div class="stay-address">📍 ${a.maps ? `<a href="${esc(a.maps)}" target="_blank" rel="noopener" class="stay-maps-link">${esc(a.address)}</a>` : esc(a.address)}</div>
         <div class="stay-dates">
           <span class="stay-date-pill">כניסה: ${esc(a.checkIn)}</span>
           <span class="stay-date-pill">יציאה: ${esc(a.checkOut)}</span>
@@ -1020,7 +1043,11 @@
       <div class="card"><div class="card-title">אפליקציות</div>${appsHtml}</div>
       <div class="card">
         <div class="card-title">קניות בוינה (02.08)</div>
-        ${k.vienna.map(v => `<div style="font-size:0.85rem;padding:0.3rem 0"><strong>${esc(v.name)}</strong> — ${esc(v.note)}</div>`).join('')}
+        ${k.vienna.map(v => {
+          const maps = v.maps || (v.placeKey && PLACES[v.placeKey]?.maps);
+          const mapLink = maps ? ` <a class="link-btn link-maps" href="${esc(maps)}" target="_blank" rel="noopener">📍 מפה</a>` : '';
+          return `<div style="font-size:0.85rem;padding:0.3rem 0"><strong>${esc(v.name)}</strong> — ${esc(v.note)}${mapLink}</div>`;
+        }).join('')}
       </div>
       <div class="card">
         <div class="card-title">טיפים</div>
@@ -1039,6 +1066,7 @@
         <div class="confirm-row"><span class="confirm-label">החזרה</span><span>${esc(r.return)}</span></div>
         <div class="tip-box">${esc(r.note)}</div>
         ${r.url ? `<a class="check-link" href="${esc(r.url)}" target="_blank" rel="noopener">אתר Europcar</a>` : ''}
+        ${r.maps ? `<a class="link-btn link-maps" href="${esc(r.maps)}" target="_blank" rel="noopener" style="margin-right:0.5rem">📍 מפה — שדה תעופה</a>` : ''}
         <ul class="info-list" style="margin-top:0.5rem">${r.checklist.map(c => `<li>${esc(c)}</li>`).join('')}</ul>
       </div>
       <div class="alert"><strong>${esc(v.title)}</strong>${esc(v.description)}</div>

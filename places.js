@@ -30,6 +30,7 @@ const PLACES = {
     name: "Salzwelten Hallstatt",
     web: "https://www.salzwelten.at/en/hallstatt-salt-mine",
     book: "https://www.salzwelten.at/en/tickets",
+    maps: "https://maps.google.com/?q=Salzwelten+Hallstatt",
     image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80",
   },
   gosausee: {
@@ -96,6 +97,7 @@ const PLACES = {
     name: "Europcar",
     web: "https://www.europcar.at",
     book: "https://www.europcar.at",
+    maps: "https://maps.google.com/?q=Europcar+Vienna+Airport",
     image: "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80",
   },
   asfinag: {
@@ -106,7 +108,38 @@ const PLACES = {
   },
   shefa: {
     name: "Shefa Market וינה",
-    maps: "https://maps.google.com/?q=Shefa+Market+Vienna",
+    maps: "https://maps.google.com/?q=Shefa+Market+Taborstraße+24+Vienna",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
+  },
+  viennaDuplex: {
+    name: "Duplex Apartment Wien",
+    maps: "https://maps.google.com/?q=Heinestraße+19+1020+Wien",
+    image: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80",
+  },
+  nhAirport: {
+    name: "NH Vienna Airport",
+    web: "https://www.nh-hotels.com/en/hotel/nh-vienna-airport-conference-center",
+    maps: "https://maps.google.com/?q=NH+Vienna+Airport+Conference+Center+Einfahrtsstraße+1+Schwechat",
+    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800&q=80",
+  },
+  reiteralmsee: {
+    name: "Reiteralmsee",
+    maps: "https://maps.google.com/?q=Reiteralmsee+Ramsau",
+    image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&q=80",
+  },
+  prater: {
+    name: "Prater Wien",
+    maps: "https://maps.google.com/?q=Prater+Vienna",
+    image: "https://images.unsplash.com/photo-1605011654378-9c8422f550bf?w=800&q=80",
+  },
+  hallstattParking: {
+    name: "P1 Hallstatt Parking",
+    maps: "https://maps.google.com/?q=P1+Parkplatz+Hallstatt",
+    image: "https://images.unsplash.com/photo-1605011654378-9c8422f550bf?w=800&q=80",
+  },
+  sparLeopoldstadt: {
+    name: "Spar / Billa / Hofer (וינה)",
+    maps: "https://maps.google.com/?q=Spar+Praterstraße+Vienna+1020",
     image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
   },
   primarkSCS: {

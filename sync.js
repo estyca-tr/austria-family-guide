@@ -134,18 +134,22 @@ window.TripSync = (function () {
       updated_at: ts,
     };
     try {
-      await fetch(sb.url + '/rest/v1/trip_states', {
+      const res = await fetch(sb.url + '/rest/v1/trip_states', {
         method: 'POST',
         headers: {
           apikey: sb.key,
           Authorization: 'Bearer ' + sb.key,
           'Content-Type': 'application/json',
-          Prefer: 'resolution=merge-duplicates',
+          Prefer: 'resolution=merge-duplicates,return=minimal',
         },
         body: JSON.stringify(body),
       });
-    } catch { /* offline */ }
-    lastAppliedTs = ts;
+      if (!res.ok) return false;
+      lastAppliedTs = ts;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function fetchOnce() {
