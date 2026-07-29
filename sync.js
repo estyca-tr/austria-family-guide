@@ -10,7 +10,6 @@ window.TripSync = (function () {
     url: 'https://oannwkfrypmgptywjhty.supabase.co',
     key: 'sb_publishable_ldcQP0CMKQsytMjv4IgQFQ_xLzS0rSl',
   };
-  const FALLBACK_ROOM = 'PHVXFCNQ';
   let roomId = null;
   let onRemoteCallback = null;
   let pushTimer = null;
@@ -73,20 +72,6 @@ window.TripSync = (function () {
       localStorage.setItem(ROOM_KEY, stored);
       writeRoomCookie(stored);
       return stored;
-    }
-    if (window.DEFAULT_ROOM) {
-      const code = String(window.DEFAULT_ROOM).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-      if (code.length >= 6) {
-        localStorage.setItem(ROOM_KEY, code);
-        writeRoomCookie(code);
-        return code;
-      }
-    }
-    const fallback = String(FALLBACK_ROOM).trim().toUpperCase();
-    if (fallback.length >= 6) {
-      localStorage.setItem(ROOM_KEY, fallback);
-      writeRoomCookie(fallback);
-      return fallback;
     }
     return null;
   }
@@ -360,6 +345,14 @@ window.TripSync = (function () {
     updateUrl(null);
   }
 
+  async function provisionRemoteRoom(initialState) {
+    if (!hasCloud()) return null;
+    const code = generateRoomId();
+    const payload = initialState || { checks: {}, shopping: {}, custom: {} };
+    const ok = await supabasePush(code, payload);
+    return ok ? code : null;
+  }
+
   function push(state) {
     if (!roomId) return Promise.resolve(false);
     clearTimeout(pushTimer);
@@ -387,6 +380,7 @@ window.TripSync = (function () {
     createRoom,
     joinRoom,
     leaveRoom,
+    provisionRemoteRoom,
     push,
     fetchOnce,
     getRoomId,

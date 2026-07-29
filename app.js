@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '32';
+  const APP_VERSION = '34';
   const RECENT_EDIT_MS = 10000;
   let syncInFlight = false;
   let state = loadState();
@@ -163,7 +163,7 @@
 
     applyingRemote = true;
     state = {
-      checks: { ...(remote.checks || {}), ...(state.checks || {}) },
+      checks: mergeShoppingMarks(state.checks, remote.checks),
       shopping: mergeShoppingMarks(state.shopping, remote.shopping),
       custom: mergeCustom(state.custom, remote.custom),
     };
@@ -429,7 +429,7 @@
         ${cloud ? '<button type="button" class="maps-btn" id="sync-refresh-btn" style="background:var(--green-light);margin-top:0.35rem">🔄 סנכרן עכשיו</button>' : ''}
         ${cloud ? `
         <div class="couple-invite-box">
-          <p class="group-hint"><strong>זוג שמטייל איתכם?</strong> שלחי להם את המדריך — הם רק יוצרים קבוצה חדשה (בלי הגדרות טכניות).</p>
+          <p class="group-hint"><strong>זוג שמטייל איתכם?</strong> נוצרת להם קבוצה נפרדת בענן — בלי לגעת ברשימה שלכם.</p>
           <button type="button" class="maps-btn" style="background:#25d366;width:100%" id="whatsapp-couple-btn">👫 שלחי לזוג אחר (וואטסאפ)</button>
         </div>` : ''}
         ${cloud ? '' : `
@@ -451,29 +451,52 @@
           </details>
         </details>`}
         <details class="group-advanced">
-          <summary>זוג אחר / גיבוי</summary>
-          <button type="button" class="maps-btn" style="background:#c44;margin-top:0.35rem" id="new-room-btn">קבוצה חדשה (זוג אחר)</button>
+          <summary>מכשיר זה / גיבוי</summary>
+          <button type="button" class="maps-btn" style="background:#c44;margin-top:0.35rem" id="new-room-btn">עזיבת קבוצה — התחלה מחדש במכשיר זה</button>
           <button type="button" class="maps-btn" style="background:var(--text-muted);margin-top:0.35rem" id="export-state-btn">גיבוי טכני (לא לבעל!)</button>
           <button type="button" class="maps-btn" style="background:var(--green-light);margin-top:0.35rem" id="import-state-btn">ייבוא גיבוי</button>
         </details>
       </div>`;
   }
 
-  function otherCoupleInviteMessage() {
+  function otherCoupleInviteMessage(link, code) {
+    const familyCode = window.FAMILY_ROOM_CODE || 'PHVXFCNQ';
+    return 'היי! 🏔️\n'
+      + 'מדריך הטיול שלנו לאוסטריה:\n'
+      + link + '\n\n'
+      + 'הקבוצה שלכם כבר מוכנה — פשוט לוחצים על הקישור (בשניכם).\n'
+      + 'קוד קבוצה: ' + code + '\n\n'
+      + '⚠️ אל תצטרפו לקבוצה שלנו (' + familyCode + ')\n\n'
+      + 'בהצלחה! 🇦🇹';
+  }
+
+  function otherCoupleInviteMessageLegacy() {
     const base = (TRIP.meta && TRIP.meta.shareUrl) ? TRIP.meta.shareUrl.replace(/\?.*$/, '').replace(/#.*$/, '') : 'https://estyca-tr.github.io/austria-family-guide/';
     return 'היי! 🏔️\n'
       + 'מדריך הטיול שלנו לאוסטריה:\n'
       + base + '\n\n'
-      + 'הוראות (2 דקות, בלי הגדרות טכניות):\n'
+      + 'הוראות:\n'
       + '1️⃣ נכנסים לקישור\n'
-      + '2️⃣ בית → סנכרון משפחתי → «צרו קבוצה חדשה»\n'
-      + '   ⚠️ חשוב: קבוצה שלכם! לא להצטרף לקבוצה שלנו\n'
-      + '3️⃣ שולחים את הקישור לבן/בת הזוג — מסתנכרן אוטומטית ביניכם\n\n'
+      + '2️⃣ בית → סנכרון משפחתי → «צרי קבוצה חדשה»\n'
+      + '3️⃣ שולחים את הקישור לבן/בת הזוג\n\n'
       + 'בהצלחה! 🇦🇹';
   }
 
-  function openWhatsAppOtherCouple() {
-    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(otherCoupleInviteMessage());
+  async function openWhatsAppOtherCouple() {
+    if (typeof TripSync !== 'undefined' && TripSync.hasCloud() && TripSync.provisionRemoteRoom) {
+      showToast('⏳ יוצרת קבוצה לזוג...');
+      const code = await TripSync.provisionRemoteRoom({ checks: {}, shopping: {}, custom: {} });
+      if (!code) {
+        showToast('שגיאה — נסי שוב');
+        return;
+      }
+      const link = TripSync.groupShareUrl(code);
+      const waUrl = 'https://wa.me/?text=' + encodeURIComponent(otherCoupleInviteMessage(link, code));
+      window.open(waUrl, '_blank', 'noopener');
+      showToast('✓ קבוצה ' + code + ' נוצרה לזוג');
+      return;
+    }
+    const waUrl = 'https://wa.me/?text=' + encodeURIComponent(otherCoupleInviteMessageLegacy());
     window.open(waUrl, '_blank', 'noopener');
   }
 
@@ -522,6 +545,8 @@
     });
 
     document.getElementById('create-room-btn')?.addEventListener('click', async () => {
+      state = { checks: {}, shopping: {}, custom: defaultCustom() };
+      saveState();
       const code = TripSync.createRoom();
       if (!code) return showToast('שגיאה — בדקי חיבור לאינטרנט');
       await TripSync.push(state);
@@ -591,7 +616,7 @@
     });
 
     document.getElementById('new-room-btn')?.addEventListener('click', async () => {
-      if (!confirm('ליצור קבוצה חדשה? זוג אחר יקבל רשימה נפרדת. הסימונים הנוכחיים יישארו אצלך מקומית.')) return;
+      if (!confirm('זה רק למכשיר הזה — לעזוב את הקבוצה הנוכחית ולהתחיל מחדש.\nלזוג אחר השתמשי בכפתור «שלחי לזוג אחר» למעלה.\n\nלהמשיך?')) return;
       TripSync.leaveRoom();
       state = { checks: {}, shopping: {}, custom: defaultCustom() };
       saveState();
@@ -1181,7 +1206,7 @@
           <div class="add-section-label">➕ קטגוריה חדשה לגמרי</div>
           ${renderAddBar({ type: 'shop-cat', placeholder: 'שם קטגוריה (למשל: חטיפים לדרך)' })}
         </div>
-        ${!catsHtml && !customCatsHtml && showPending ? '<div class="card" style="text-align:center;color:var(--green)">🎉 הכל נקנה!</div>' : ''}
+        ${!catsHtml && !customCatsHtml && showPending ? '<div class="card" style="text-align:center;color:var(--green)">🎉 הכל נקנה!<br><small style="color:var(--text-muted)">לחצי למעלה על <strong>נקנה ✓</strong> לראות את הרשימה</small></div>' : ''}
       </div>`;
   }
 
