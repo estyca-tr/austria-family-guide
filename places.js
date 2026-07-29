@@ -1,0 +1,112 @@
+/* eslint-disable no-unused-vars */
+const PLACES = {
+  dachstein: {
+    name: "Dachstein Glacier",
+    web: "https://www.dachstein-salzkammergut.com",
+    book: "https://www.derdachstein.at/reservierung",
+    maps: "https://maps.google.com/?q=Dachstein+Gletscherbahn+Ramsau",
+    image: "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80",
+  },
+  planai: {
+    name: "Planai & Hopsiland",
+    web: "https://www.planai.at",
+    book: "https://www.schladming-dachstein.at",
+    maps: "https://maps.google.com/?q=Planai+Schladming",
+    image: "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&q=80",
+  },
+  reiteralm: {
+    name: "Reiteralm",
+    web: "https://www.reiteralm.at",
+    maps: "https://maps.google.com/?q=Preunegg+Jet+Reiteralm",
+    image: "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=800&q=80",
+  },
+  hallstatt: {
+    name: "Hallstatt",
+    web: "https://www.hallstatt.net",
+    maps: "https://maps.google.com/?q=Hallstatt+Austria",
+    image: "https://images.unsplash.com/photo-1605011654378-9c8422f550bf?w=800&q=80",
+  },
+  hallstattMine: {
+    name: "Salzwelten Hallstatt",
+    web: "https://www.salzwelten.at/en/hallstatt-salt-mine",
+    book: "https://www.salzwelten.at/en/tickets",
+    image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=80",
+  },
+  gosausee: {
+    name: "Gosausee",
+    web: "https://www.dachstein-salzkammergut.com/de/ausflugsziele/gosauseen",
+    maps: "https://maps.google.com/?q=Gosausee",
+    image: "https://images.unsplash.com/photo-1531366936337-7c912a4589a7?w=800&q=80",
+  },
+  rittisberg: {
+    name: "Rittisberg",
+    web: "https://www.rittisberg.at",
+    maps: "https://maps.google.com/?q=Rittisberg+Ramsau",
+    image: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&q=80",
+  },
+  hauserKaibling: {
+    name: "Hauser Kaibling",
+    web: "https://www.hauser-kaibling.at",
+    maps: "https://maps.google.com/?q=Hauser+Kaibling",
+    image: "https://images.unsplash.com/photo-1523712999619-f77fbcfc3843?w=800&q=80",
+  },
+  hochwurzen: {
+    name: "Hochwurzen",
+    web: "https://www.hochwurzen.com",
+    maps: "https://maps.google.com/?q=Hochwurzen+Schladming",
+    image: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80",
+  },
+  wildeBerg: {
+    name: "Der Wilde Berg Mautern",
+    web: "https://www.derwildeberg.at",
+    maps: "https://maps.google.com/?q=Der+Wilde+Berg+Mautern",
+    image: "https://images.unsplash.com/photo-1564349683136-77e08db1eea3?w=800&q=80",
+  },
+  woerschachklamm: {
+    name: "Wörschachklamm",
+    web: "https://www.woerschachklamm.at",
+    maps: "https://maps.google.com/?q=W%C3%B6rschachklamm",
+    image: "https://images.unsplash.com/photo-1439066615861-d1af74d74045?w=800&q=80",
+  },
+  waldrand: {
+    name: "Waldrand Apartments",
+    web: "https://waldrand.rocks",
+    maps: "https://maps.google.com/?q=Vorberg+11+Ramsau",
+    image: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=800&q=80",
+  },
+  vienna: {
+    name: "וינה",
+    web: "https://www.wien.info",
+    maps: "https://maps.google.com/?q=Vienna+Austria",
+    image: "https://images.unsplash.com/photo-1605011654378-9c8422f550bf?w=800&q=80",
+  },
+  viennaAirport: {
+    name: "נמל תעופה וינה",
+    web: "https://www.viennaairport.com",
+    maps: "https://maps.google.com/?q=Vienna+International+Airport",
+    image: "https://images.unsplash.com/photo-1436491865332-7a61a3cc8f0b?w=800&q=80",
+  },
+  schladmingCard: {
+    name: "Schladming-Dachstein Card",
+    web: "https://www.schladming-dachstein.at",
+    book: "https://www.schladming-dachstein.at",
+    image: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80",
+  },
+  europcar: {
+    name: "Europcar",
+    web: "https://www.europcar.at",
+    book: "https://www.europcar.at",
+    image: "https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?w=800&q=80",
+  },
+  asfinag: {
+    name: "Vignette (ASFiNAG)",
+    web: "https://www.asfinag.at",
+    book: "https://shop.asfinag.at/en/buy-vignette/",
+    image: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=800&q=80",
+  },
+  shefa: {
+    name: "Shefa Market וינה",
+    maps: "https://maps.google.com/?q=Shefa+Market+Vienna",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?w=800&q=80",
+  },
+};

@@ -30,7 +30,7 @@ html {
 
 body {
   font-family: 'Heebo', sans-serif;
-  background: var(--bg);
+  background: linear-gradient(180deg, #eef5f1 0%, var(--bg) 120px);
   color: var(--text);
   line-height: 1.5;
   min-height: 100dvh;
@@ -57,11 +57,11 @@ body {
 .hero-bg::after {
   content: '';
   position: absolute;
-  bottom: -40px;
+  bottom: -50px;
   left: 0;
   right: 0;
-  height: 80px;
-  background: var(--bg);
+  height: 90px;
+  background: linear-gradient(180deg, transparent, var(--bg));
   border-radius: 50% 50% 0 0 / 100% 100% 0 0;
 }
 
@@ -143,8 +143,166 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 1rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.85rem;
   border: 1px solid var(--border);
+  overflow: hidden;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+/* Day card images */
+.day-card.has-day-img {
+  padding: 0;
+}
+
+.day-card.has-day-img .day-header,
+.day-card.has-day-img .day-body {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.day-card.has-day-img .day-header {
+  padding-top: 0.85rem;
+}
+
+.day-card.has-day-img .day-body {
+  padding-bottom: 1rem;
+}
+
+.day-card-img {
+  height: 140px;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.day-card-img::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.45) 0%, transparent 60%);
+}
+
+.day-img-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  z-index: 1;
+  background: rgba(255,255,255,0.92);
+  color: var(--green-dark);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  border-radius: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.today-card.has-img {
+  padding: 0;
+  overflow: hidden;
+}
+
+.today-card .day-card-body {
+  padding: 1rem;
+}
+
+.today-card .day-card-img {
+  height: 110px;
+}
+
+.day-summary-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0.65rem;
+}
+
+/* Gallery */
+.gallery-scroll {
+  display: flex;
+  gap: 0.65rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.75rem;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 0.25rem;
+}
+
+.gallery-scroll::-webkit-scrollbar { display: none; }
+
+.gallery-item {
+  flex: 0 0 148px;
+  scroll-snap-align: start;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+  box-shadow: var(--shadow);
+  text-decoration: none;
+  color: white;
+}
+
+.gallery-item img {
+  width: 148px;
+  height: 100px;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 1.5rem 0.5rem 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: linear-gradient(transparent, rgba(0,0,0,0.7));
+  text-align: center;
+}
+
+/* Activity links */
+.activity-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.4rem;
+}
+
+.link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.28rem 0.55rem;
+  border-radius: 6px;
+  text-decoration: none;
+  background: var(--green-pale);
+  color: var(--green-dark);
+  border: 1px solid rgba(45, 106, 79, 0.2);
+  transition: background 0.15s, transform 0.1s;
+}
+
+.link-btn:active {
+  transform: scale(0.96);
+}
+
+.link-btn.link-book {
+  background: linear-gradient(135deg, #fff8e7, var(--gold-light));
+  color: #7a4f12;
+  border-color: rgba(212, 163, 115, 0.5);
+}
+
+.link-btn.link-maps {
+  background: #e8f4fd;
+  color: #1565c0;
+  border-color: rgba(21, 101, 192, 0.2);
+}
+
+.coverage-card {
+  padding: 0.55rem 0;
 }
 
 .card-title {
@@ -185,7 +343,11 @@ body {
   font-weight: 600;
   color: var(--text);
   box-shadow: var(--shadow);
-  transition: transform 0.15s, box-shadow 0.15s;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.quick-btn:hover {
+  border-color: var(--green-light);
 }
 
 .quick-btn:active {

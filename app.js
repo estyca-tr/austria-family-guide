@@ -34,6 +34,28 @@
     return d.innerHTML;
   }
 
+  function dayImage(day) {
+    if (day.placeKey && typeof PLACES !== 'undefined' && PLACES[day.placeKey]) {
+      return PLACES[day.placeKey].image;
+    }
+    return null;
+  }
+
+  function renderLinks(a) {
+    const parts = [];
+    if (a.book) parts.push(`<a class="link-btn link-book" href="${esc(a.book)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🎫 הזמנה</a>`);
+    if (a.url) parts.push(`<a class="link-btn" href="${esc(a.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🌐 אתר</a>`);
+    if (a.maps) parts.push(`<a class="link-btn link-maps" href="${esc(a.maps)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📍 מפה</a>`);
+    return parts.length ? `<div class="activity-links">${parts.join('')}</div>` : '';
+  }
+
+  function renderCoverageLinks(c) {
+    const parts = [];
+    if (c.book) parts.push(`<a class="link-btn link-book" href="${esc(c.book)}" target="_blank" rel="noopener">🎫 הזמנה</a>`);
+    if (c.url) parts.push(`<a class="link-btn" href="${esc(c.url)}" target="_blank" rel="noopener">🌐 אתר</a>`);
+    return parts.length ? `<div class="activity-links" style="margin-top:0.35rem">${parts.join('')}</div>` : '';
+  }
+
   function shoppingKey(catId, item) {
     return `shop-${catId}-${item}`;
   }
@@ -58,6 +80,7 @@
     document.getElementById('trip-dates').textContent = `${TRIP.meta.dates} · ${TRIP.meta.tripCore}`;
     document.getElementById('trip-family').textContent = TRIP.meta.family;
     renderCountdown();
+    applyHeroImage();
     renderMain();
     bindNav();
     updateBadges();
@@ -65,6 +88,15 @@
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
+    }
+  }
+
+  function applyHeroImage() {
+    const bg = document.querySelector('.hero-bg');
+    if (bg && TRIP.meta.heroImage) {
+      bg.style.backgroundImage = `linear-gradient(160deg, rgba(26,77,62,0.88) 0%, rgba(45,106,79,0.75) 45%, rgba(64,145,108,0.55) 100%), url('${TRIP.meta.heroImage}')`;
+      bg.style.backgroundSize = 'cover';
+      bg.style.backgroundPosition = 'center';
     }
   }
 
@@ -175,11 +207,15 @@
 
     let todayHtml = '';
     if (today) {
+      const img = dayImage(today);
       todayHtml = `
-        <div class="card today-card">
-          <div class="card-title">📍 היום: ${esc(today.title)}</div>
-          <p style="font-size:0.85rem;color:var(--text-muted)">${esc(today.weekday)} ${esc(today.date)} — ${esc(today.summary)}</p>
-          <button class="maps-btn" style="margin-top:0.6rem" data-goto="days">פתחי את היום המלא ←</button>
+        <div class="card today-card ${img ? 'has-img' : ''}">
+          ${img ? `<div class="day-card-img" style="background-image:url('${esc(img)}')"></div>` : ''}
+          <div class="day-card-body">
+            <div class="card-title">📍 היום: ${esc(today.title)}</div>
+            <p class="day-summary-text">${esc(today.weekday)} ${esc(today.date)} — ${esc(today.summary)}</p>
+            <button class="maps-btn" data-goto="days">פתחי את היום המלא ←</button>
+          </div>
         </div>`;
     }
 
@@ -192,6 +228,15 @@
       <div class="tab-panel active">
         ${alertHtml}
         ${todayHtml}
+        ${TRIP.meta.gallery ? `
+        <div class="section-title">רגעים מהטיול</div>
+        <div class="gallery-scroll">
+          ${TRIP.meta.gallery.map(g => `
+            <a class="gallery-item" href="${esc(g.url || '#')}" target="_blank" rel="noopener">
+              <img src="${esc(g.image)}" alt="${esc(g.title)}" loading="lazy" />
+              <span class="gallery-label">${esc(g.title)}</span>
+            </a>`).join('')}
+        </div>` : ''}
         <div class="section-title">עקרונות הטיול שלנו</div>
         <div class="card">
           <ul class="principles-list">${TRIP.meta.principles.map(p => `<li>${esc(p)}</li>`).join('')}</ul>
@@ -241,18 +286,24 @@
 
   function renderDays() {
     const coverage = TRIP.cardCoverage.map(c => `
-      <div class="coverage-row">
-        <span>${esc(c.name)}<br><small style="color:var(--text-muted)">${esc(c.note)}</small></span>
-        <span class="${c.status === 'כלול' ? 'coverage-included' : 'coverage-extra'}">${esc(c.status)}</span>
+      <div class="coverage-row coverage-card">
+        <div>
+          <strong>${esc(c.name)}</strong><br>
+          <small style="color:var(--text-muted)">${esc(c.note)}</small>
+          ${renderCoverageLinks(c)}
+        </div>
+        <span class="${c.status === 'כלול' || c.status === 'חינם' ? 'coverage-included' : 'coverage-extra'}">${esc(c.status)}</span>
       </div>`).join('');
 
     const daysHtml = TRIP.days.map(d => {
+      const img = dayImage(d);
       const activities = d.activities.map(a => `
         <div class="activity">
           <span class="activity-time">${esc(a.time)}</span>
           <div class="activity-info">
             <div class="activity-name">${esc(a.name)}</div>
             ${a.notes ? `<div class="activity-notes">${esc(a.notes)}</div>` : ''}
+            ${renderLinks(a)}
           </div>
           ${a.price ? `<span class="activity-price">${esc(a.price)}</span>` : ''}
         </div>`).join('');
@@ -264,9 +315,10 @@
         </div>` : '';
 
       return `
-        <div class="card day-card" data-day-id="${d.id}">
+        <div class="card day-card ${img ? 'has-day-img' : ''}" data-day-id="${d.id}">
+          ${img ? `<div class="day-card-img" style="background-image:url('${esc(img)}')"><span class="day-img-badge">${d.emoji} ${esc(d.date)}</span></div>` : ''}
           <div class="day-header" data-toggle-day="${d.id}">
-            <span class="day-emoji">${d.emoji}</span>
+            ${img ? '' : `<span class="day-emoji">${d.emoji}</span>`}
             <div class="day-meta">
               <div class="day-date">${esc(d.weekday)} ${esc(d.date)}</div>
               <div class="day-title">${esc(d.title)}</div>
