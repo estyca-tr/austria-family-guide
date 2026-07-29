@@ -3,8 +3,9 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '30';
+  const APP_VERSION = '31';
   const RECENT_EDIT_MS = 10000;
+  let syncInFlight = false;
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -226,115 +227,120 @@
   async function syncWithCloud(notify) {
     if (typeof TripSync === 'undefined' || !TripSync.getRoomId()) {
       if (notify) showToast('אין קבוצה פעילה');
-      return;
+      return false;
+    }
+    if (syncInFlight) {
+      if (notify) showToast('סנכרון כבר רץ…');
+      return false;
     }
 
+    syncInFlight = true;
     syncStatus = 'pending';
     updateSyncDot();
 
-    const remote = await TripSync.fetchOnce();
-    if (remote?.error === 'no-room') {
-      syncStatus = 'error';
-      updateSyncDot();
-      if (notify) showToast('חסר קוד קבוצה — מחקי את האייקון והוסיפי מחדש מהקישור');
-      return;
-    }
-    if (remote?.error === 'no-cloud') {
-      syncStatus = 'error';
-      updateSyncDot();
-      if (notify) showToast('🔴 הגדרות ענן חסרות — פתחי בדפדפן');
-      return;
-    }
-    if (remote?.error) {
-      syncStatus = 'error';
-      updateSyncDot();
-      if (notify) {
-        if (isStandalonePwa()) {
-          showToast('📱 מחקי אייקון → פתחי ב-Safari → הוסיפי מחדש');
-        } else {
-          showToast('🔴 בעיית רשת — ודאי שיש WiFi/סלולר ונסי שוב');
+    try {
+      const remote = await TripSync.fetchOnce();
+      if (remote?.error === 'no-room') {
+        syncStatus = 'error';
+        if (notify) showToast('חסר קוד קבוצה — מחקי את האייקון והוסיפי מחדש מהקישור');
+        return false;
+      }
+      if (remote?.error === 'no-cloud') {
+        syncStatus = 'error';
+        if (notify) showToast('🔴 הגדרות ענן חסרות — פתחי בדפדפן');
+        return false;
+      }
+      if (remote?.error) {
+        syncStatus = 'error';
+        if (notify) {
+          if (isStandalonePwa()) {
+            showToast('📱 מחקי אייקון → פתחי ב-Safari → הוסיפי מחדש');
+          } else {
+            showToast('🔴 בעיית רשת — ודאי שיש WiFi/סלולר ונסי שוב');
+          }
         }
+        return false;
       }
-      return;
-    }
-    if (!remote || !remote._ts) {
+      if (!remote || !remote._ts) {
+        syncStatus = 'error';
+        if (notify) showToast('🔴 לא הצלחנו לטעון מהענן');
+        return false;
+      }
+
+      const meta = getSyncMeta();
+      const remoteTs = remote._ts || 0;
+      const localEditTs = meta.lastLocalEdit || 0;
+      const localMarks = countMarksInState(state);
+      const cloudMarks = countMarksInState(remote);
+      const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
+
+      if (cloudMarks > localMarks && recentlyEditedLocally()) {
+        const ok = await TripSync.push(state);
+        if (ok === false) {
+          syncStatus = 'error';
+          if (notify) showToast('סנכרון נכשל — בדקי אינטרנט');
+          return false;
+        }
+        const fresh = await TripSync.fetchOnce();
+        if (fresh && !fresh.error) {
+          TripSync.bumpLastApplied(fresh._ts || Date.now());
+          setSyncMeta({ lastAppliedRemote: fresh._ts || Date.now() });
+        }
+        syncStatus = 'live';
+        if (notify) showToast(`✓ נשמר בענן · ${localMarks} סימונים`);
+        return true;
+      }
+
+      if (cloudMarks > localMarks && !recentlyEditedLocally()) {
+        TripSync.bumpLastApplied(remoteTs);
+        applyRemoteState(remote, remoteTs, true);
+        syncStatus = 'live';
+        if (notify) showToast(`✓ שוחזר מהענן · ${cloudMarks} סימונים`);
+        return true;
+      }
+
+      if (localMarks > cloudMarks || localEditTs > remoteTs) {
+        const ok = await TripSync.push(state);
+        if (ok === false) {
+          syncStatus = 'error';
+          if (notify) showToast('סנכרון נכשל — בדקי אינטרנט');
+          return false;
+        }
+        const fresh = await TripSync.fetchOnce();
+        if (fresh && !fresh.error) {
+          TripSync.bumpLastApplied(fresh._ts || Date.now());
+          setSyncMeta({ lastAppliedRemote: fresh._ts || Date.now() });
+        }
+        syncStatus = 'live';
+        if (notify) showToast(`✓ נשמר בענן · ${localMarks} סימונים`);
+        return true;
+      }
+
+      if (remoteTs > (meta.lastAppliedRemote || 0)) {
+        TripSync.bumpLastApplied(remoteTs);
+        applyRemoteState(remote, remoteTs, true);
+      }
+
+      syncStatus = 'live';
+
+      if (!notify) return true;
+
+      const after = JSON.stringify({ checks: state.checks, shopping: state.shopping });
+      if (cloudMarks === 0 && localMarks === 0) {
+        showToast('✓ מחובר — אין סימונים בענן');
+      } else if (before !== after) {
+        showToast(`✓ עודכן · ${countMarksInState(state)} סימונים`);
+      } else {
+        showToast(`✓ מסונכרן · ${cloudMarks} סימונים בענן`);
+      }
+      return true;
+    } catch {
       syncStatus = 'error';
+      if (notify) showToast('🔴 הסנכרון נכשל — נסי שוב');
+      return false;
+    } finally {
+      syncInFlight = false;
       updateSyncDot();
-      if (notify) showToast('🔴 לא הצלחנו לטעון מהענן');
-      return;
-    }
-
-    const meta = getSyncMeta();
-    const remoteTs = remote._ts || 0;
-    const localEditTs = meta.lastLocalEdit || 0;
-    const localMarks = countMarksInState(state);
-    const cloudMarks = countMarksInState(remote);
-    const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
-
-    if (cloudMarks > localMarks && recentlyEditedLocally()) {
-      const ok = await TripSync.push(state);
-      if (ok === false) {
-        syncStatus = 'error';
-        updateSyncDot();
-        if (notify) showToast('סנכרון נכשל — בדקי אינטרנט');
-        return;
-      }
-      const fresh = await TripSync.fetchOnce();
-      if (fresh && !fresh.error) {
-        TripSync.bumpLastApplied(fresh._ts || Date.now());
-        setSyncMeta({ lastAppliedRemote: fresh._ts || Date.now() });
-      }
-      syncStatus = 'live';
-      updateSyncDot();
-      if (notify) showToast(`✓ נשמר בענן · ${localMarks} סימונים`);
-      return;
-    }
-
-    if (cloudMarks > localMarks && !recentlyEditedLocally()) {
-      TripSync.bumpLastApplied(remoteTs);
-      applyRemoteState(remote, remoteTs, true);
-      syncStatus = 'live';
-      updateSyncDot();
-      if (notify) showToast(`✓ שוחזר מהענן · ${cloudMarks} סימונים`);
-      return;
-    }
-
-    if (localMarks > cloudMarks || localEditTs > remoteTs) {
-      const ok = await TripSync.push(state);
-      if (ok === false) {
-        syncStatus = 'error';
-        updateSyncDot();
-        if (notify) showToast('סנכרון נכשל — בדקי אינטרנט');
-        return;
-      }
-      const fresh = await TripSync.fetchOnce();
-      if (fresh && !fresh.error) {
-        TripSync.bumpLastApplied(fresh._ts || Date.now());
-        setSyncMeta({ lastAppliedRemote: fresh._ts || Date.now() });
-      }
-      syncStatus = 'live';
-      updateSyncDot();
-      if (notify) showToast(`✓ נשמר בענן · ${localMarks} סימונים`);
-      return;
-    }
-
-    if (remoteTs > (meta.lastAppliedRemote || 0)) {
-      TripSync.bumpLastApplied(remoteTs);
-      applyRemoteState(remote, remoteTs, true);
-    }
-
-    syncStatus = 'live';
-    updateSyncDot();
-
-    if (!notify) return;
-
-    const after = JSON.stringify({ checks: state.checks, shopping: state.shopping });
-    if (cloudMarks === 0 && localMarks === 0) {
-      showToast('✓ מחובר — אין סימונים בענן');
-    } else if (before !== after) {
-      showToast(`✓ עודכן · ${countMarksInState(state)} סימונים`);
-    } else {
-      showToast(`✓ מסונכרן · ${cloudMarks} סימונים בענן`);
     }
   }
 
@@ -535,12 +541,21 @@
     const refreshBtn = document.getElementById('sync-refresh-btn');
     if (refreshBtn) {
       refreshBtn.onclick = async () => {
-        refreshBtn.disabled = true;
-        const label = refreshBtn.textContent;
-        refreshBtn.textContent = '⏳ מרענן...';
-        await syncWithCloud(true);
-        refreshBtn.disabled = false;
-        refreshBtn.textContent = label;
+        const btn = document.getElementById('sync-refresh-btn');
+        if (!btn || btn.disabled) return;
+        const label = btn.dataset.label || btn.textContent;
+        btn.dataset.label = label;
+        btn.disabled = true;
+        btn.textContent = '⏳ מסנכרן...';
+        try {
+          await syncWithCloud(true);
+        } finally {
+          const current = document.getElementById('sync-refresh-btn');
+          if (current) {
+            current.disabled = false;
+            current.textContent = current.dataset.label || '🔄 סנכרן עכשיו';
+          }
+        }
       };
     }
 

@@ -150,13 +150,26 @@ window.TripSync = (function () {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  const FETCH_TIMEOUT_MS = 12000;
+
+  async function fetchWithTimeout(url, options, timeoutMs) {
+    const ms = timeoutMs || FETCH_TIMEOUT_MS;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ms);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function supabaseFetch(room) {
     const sb = getSupabase();
     if (!sb) return null;
     const endpoint = sb.url + '/rest/v1/trip_states?room_id=eq.' + encodeURIComponent(room) + '&select=*';
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await fetch(endpoint, {
+        const res = await fetchWithTimeout(endpoint, {
           method: 'GET',
           cache: 'no-store',
           headers: {
@@ -211,7 +224,7 @@ window.TripSync = (function () {
       updated_at: ts,
     };
     try {
-      const res = await fetch(sb.url + '/rest/v1/trip_states', {
+      const res = await fetchWithTimeout(sb.url + '/rest/v1/trip_states', {
         method: 'POST',
         headers: {
           apikey: sb.key,
@@ -233,6 +246,9 @@ window.TripSync = (function () {
     if (!room) return { error: 'no-room' };
     if (!hasCloud()) return { error: 'no-cloud' };
     const row = await supabaseFetch(room);
+    if (row === null && hasCloud()) {
+      return { error: 'network' };
+    }
     if (!row) {
       return { checks: {}, shopping: {}, custom: {}, _ts: 0 };
     }
