@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '27';
+  const APP_VERSION = '28';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -866,6 +866,7 @@
         <div class="section-title">גישה מהירה</div>
         <div class="quick-grid">
           <button class="quick-btn" data-goto="shopping"><span class="qb-icon">🛒</span>קניות (${shop.total - shop.done})</button>
+          <button class="quick-btn" data-goto-sub="meals"><span class="qb-icon">🍽️</span>ארוחות ערב</button>
           <button class="quick-btn" data-goto="bookings"><span class="qb-icon">✅</span>הזמנות</button>
           <button class="quick-btn" data-goto-sub="forget"><span class="qb-icon">🧠</span>לא לשכוח</button>
           <button class="quick-btn" data-goto-sub="checklist"><span class="qb-icon">📋</span>צ'קליסט לחול</button>
@@ -968,6 +969,7 @@
               <textarea class="day-note-input" data-day-note="${esc(d.id)}" placeholder="רעיונות, שינויים, תזכורות...">${esc(dayNote)}</textarea>
             </div>
             ${checklist}
+            ${d.dinner ? `<div class="meal-box">🍽️ <strong>ארוחת ערב:</strong> ${esc(d.dinner)}${d.dinnerNote ? `<br><small>${esc(d.dinnerNote)}</small>` : ''}</div>` : ''}
             <div class="day-footer">
               ${d.totalEstimate ? `<span class="badge badge-medium">💰 ${esc(d.totalEstimate)}</span>` : ''}
               ${d.weatherTip ? `<span class="badge badge-ok">🌤 ${esc(d.weatherTip)}</span>` : ''}
@@ -1093,6 +1095,18 @@
       return (order[a.priority] ?? 9) - (order[b.priority] ?? 9);
     });
 
+    const reservationsHtml = (TRIP.reservations || []).map(r => {
+      const cancelled = r.status === 'cancelled';
+      const cost = [r.costEur, r.costNis].filter(Boolean).join(' · ');
+      return `
+        <div class="reservation-row ${cancelled ? 'reservation-cancelled' : ''}">
+          <div class="reservation-name">${cancelled ? '❌' : '✅'} ${esc(r.name)}</div>
+          ${cost ? `<div class="reservation-cost">${esc(cost)}</div>` : ''}
+          ${r.cancelBy ? `<div class="reservation-meta">ביטול חינם עד: ${esc(r.cancelBy)}</div>` : ''}
+          ${r.notes ? `<div class="reservation-meta">${esc(r.notes)}</div>` : ''}
+        </div>`;
+    }).join('');
+
     const items = sorted.map(b => {
       const done = state.checks['booking-' + b.id];
       const badgeClass = b.priority === 'critical' ? 'badge-critical' : b.priority === 'optional' ? 'badge-ok' : 'badge-medium';
@@ -1126,15 +1140,57 @@
 
     return `
       <div class="tab-panel active">
-        <div class="alert"><strong>הזמנות לפני ובמהלך הטיול</strong>לחצי לסמן ✓ — נשמר בטלפון</div>
+        <div class="alert"><strong>הזמנות מאושרות</strong>מטיסות, לינה ורכב — מהאקסל שלך</div>
+        <div class="card">${reservationsHtml}
+          ${TRIP.budget?.totalNis ? `<div class="reservation-total">סה"כ משוער: <strong>${esc(TRIP.budget.totalNis)}</strong></div>` : ''}
+        </div>
+        <div class="alert" style="margin-top:0.75rem"><strong>עדיין לטפל</strong>לחצי לסמן ✓ — נשמר בענן</div>
         <div class="card">${items}${customBookingItems}</div>
         ${renderAddBar({ type: 'booking', placeholder: 'הוסיפי תזכורת הזמנה...' })}
       </div>`;
   }
 
+  function renderMeals() {
+    const m = TRIP.meals;
+    if (!m) return '<div class="card">אין תפריט עדיין</div>';
+
+    function mealRow(d) {
+      const shabbat = d.shabbatMeals ? `
+        <ul class="shabbat-meals-list">
+          ${d.shabbatMeals.map(s => `<li><strong>${esc(s.when)}:</strong> ${esc(s.meal)}</li>`).join('')}
+        </ul>` : '';
+      return `
+        <div class="meal-row">
+          <div class="meal-date">${esc(d.weekday)} ${esc(d.date)}${d.place ? ` · ${esc(d.place)}` : ''}</div>
+          <div class="meal-title">${esc(d.meal)}</div>
+          ${shabbat}
+          ${d.notes ? `<div class="meal-note">${esc(d.notes)}</div>` : ''}
+        </div>`;
+    }
+
+    const all = m.dinners || [];
+    const week1 = all.slice(0, 7);
+    const week2 = all.slice(7);
+
+    return `
+      <div class="card">
+        <div class="card-title">🍽️ תפריט ארוחות ערב</div>
+        <p style="font-size:0.82rem;color:var(--text-muted);margin:0.35rem 0">${esc(m.middayNote || '')}</p>
+        <ul class="info-list" style="margin-bottom:0.75rem">${(m.notes || []).map(n => `<li>${esc(n)}</li>`).join('')}</ul>
+        <div class="section-title" style="margin-top:0.5rem">${esc(m.week1Title || 'שבוע 1')}</div>
+        ${week1.map(mealRow).join('')}
+      </div>
+      ${week2.length ? `
+      <div class="card" style="margin-top:0.5rem">
+        <div class="section-title">${esc(m.week2Title || 'שבוע 2')}</div>
+        ${week2.map(mealRow).join('')}
+      </div>` : ''}`;
+  }
+
   function renderMore() {
     const menus = [
       { id: 'stay', label: '🏡 לינה' },
+      { id: 'meals', label: '🍽️ ארוחות' },
       { id: 'forget', label: '🧠 לא לשכוח' },
       { id: 'checklist', label: '📋 צ\'קליסט' },
       { id: 'kosher', label: '✡️ כשרות' },
@@ -1156,6 +1212,7 @@
   function renderSubPanel(id) {
     const panels = {
       stay: renderStay,
+      meals: renderMeals,
       forget: renderDontForget,
       checklist: renderPreTripChecklist,
       kosher: renderKosher,
@@ -1335,6 +1392,7 @@
     return `
       <div class="card">
         <div class="card-title">סיכום עלויות</div>
+        ${TRIP.budget.totalNis ? `<div class="reservation-total" style="margin-bottom:0.75rem">סה"כ מהאקסל: <strong>${esc(TRIP.budget.totalNis)}</strong></div>` : ''}
         <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">שורות עם + נוספו על ידך</p>
         ${TRIP.budget.categories.map(c => `
           <div class="budget-row">

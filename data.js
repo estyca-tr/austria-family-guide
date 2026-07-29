@@ -84,7 +84,8 @@ const TRIP = {
       confirmations: [
         { label: "הזמנה", value: "Booking.com" },
         { label: "צ'ק-אין", value: "⬜ שעה מהאישור" },
-        { label: "סכום ששולם", value: "⬜ €" },
+        { label: "סכום ששולם", value: "244.79€ (~857 ₪)" },
+        { label: "ביטול חינם עד", value: "18.07.2026" },
       ],
       contact: [],
       tips: [
@@ -112,7 +113,8 @@ const TRIP = {
       confirmations: [
         { label: "הזמנה", value: "Booking.com — 03.08–11.08" },
         { label: "שעת צ'ק-אין", value: "⬜ מהאישור" },
-        { label: "סכום ששולם", value: "⬜ €" },
+        { label: "סכום ששולם", value: "2,252.84€ (~7,886 ₪)" },
+        { label: "ביטול חינם עד", value: "26.07.2026" },
         { label: "WiFi / קוד", value: "⬜ מהאישור" },
       ],
       contact: [
@@ -143,7 +145,8 @@ const TRIP = {
       confirmations: [
         { label: "הזמנה", value: "Booking.com" },
         { label: "חניה", value: "~€42 ליום (אם צריך)" },
-        { label: "סכום ששולם", value: "⬜ €" },
+        { label: "סכום ששולם", value: "159.90€" },
+        { label: "ביטול חינם עד", value: "11.08.2026" },
       ],
       contact: [
         { label: "טלפון", value: "+43 1 701510", tel: true },
@@ -156,6 +159,98 @@ const TRIP = {
       ],
     },
   ],
+
+  reservations: [
+    {
+      id: "flights",
+      name: "טיסות",
+      costNis: "12,813 ₪",
+      costEur: "",
+      cancelBy: "",
+      status: "confirmed",
+      notes: "לבצע צ'ק-אין בזמן — לבדוק מחיר לפני",
+    },
+    {
+      id: "vienna-duplex",
+      name: "מלון וינה — לילת הגעה (Duplex)",
+      costNis: "~857 ₪",
+      costEur: "244.79€",
+      cancelBy: "18.07.2026",
+      status: "confirmed",
+      notes: "לבדוק הנחיות כניסה לפני",
+    },
+    {
+      id: "vienna-return-cancelled",
+      name: "מלון וינה יום חזרה (LifeHotel)",
+      costNis: "בוטל",
+      costEur: "בוטל",
+      cancelBy: "07.08.2026",
+      status: "cancelled",
+      notes: "הוחלף ב-NH ליד השדה",
+    },
+    {
+      id: "nh-airport",
+      name: "NH Vienna Airport — לילה לפני טיסת בוקר",
+      costNis: "",
+      costEur: "159.90€",
+      cancelBy: "11.08.2026",
+      status: "confirmed",
+      notes: "קבוצה ב' — 11.08 לילה",
+    },
+    {
+      id: "waldrand",
+      name: "Waldrand Apartments — רמסאו",
+      costNis: "~7,886 ₪",
+      costEur: "2,252.84€",
+      cancelBy: "26.07.2026",
+      status: "confirmed",
+      notes: "לבדוק הנחיות במייל לפני הגעה",
+    },
+    {
+      id: "car",
+      name: "השכרת רכב Europcar",
+      costNis: "5,368 ₪",
+      costEur: "",
+      cancelBy: "",
+      status: "confirmed",
+      notes: "להזמין כיסא תינוק לפני!",
+    },
+  ],
+
+  meals: {
+    middayNote: "אמצע היום: פסטרמות בפיתה — מי שרוצה",
+    notes: [
+      "כל הארוחות מהבית — אין מסעדות",
+      "צהריים: פיקניק בכל יום",
+      "05.08 (רביעי): אופציה לעל האש אם נשיג מנגל",
+    ],
+    week1Title: "שבוע ראשון — וינה ורמסאו",
+    week2Title: "שבוע שני — רמסאו וחזרה",
+    dinners: [
+      { date: "02.08", weekday: "ראשון", place: "וינה", meal: "שניצל עם פסטה אדומה", notes: "ערב הגעה" },
+      { date: "03.08", weekday: "שני", place: "Waldrand", meal: "שניצל עם קוסקוס וירקות", notes: "" },
+      { date: "04.08", weekday: "שלישי", place: "Waldrand", meal: "בורגר", notes: "" },
+      { date: "05.08", weekday: "רביעי", place: "Waldrand", meal: "עוף בתנור עם תפוחי אדמה ואורז", notes: "אופציה: על האש אם יש מנגל" },
+      { date: "06.08", weekday: "חמישי", place: "Waldrand", meal: "קוגל תפוחי אדמה", notes: "ליל שישי · להביא מגרדת!" },
+      { date: "07.08", weekday: "שישי", place: "Waldrand", meal: "שניצל חלה", notes: "ערב שבת" },
+      {
+        date: "08.08",
+        weekday: "שבת",
+        place: "Waldrand",
+        meal: "שבת בדירה",
+        notes: "",
+        shabbatMeals: [
+          { when: "בוקר", meal: "צונט" },
+          { when: "צהריים", meal: "דגים" },
+          { when: "ערב", meal: "בשר בתנור" },
+          { when: "מוצאי", meal: "חזה עוף שלם בפרוסות, אורז וירק" },
+        ],
+      },
+      { date: "09.08", weekday: "ראשון", place: "Waldrand", meal: "שניצל עם פלחי תפוחי אדמה", notes: "" },
+      { date: "10.08", weekday: "שני", place: "Waldrand", meal: "על האש — נקניקיות, קבבים, פרגיות, פיתות", notes: "" },
+      { date: "11.08", weekday: "שלישי", place: "וינה / NH", meal: "אוכל מהבית בדרך ובמלון", notes: "יום חזרה — Primark + שדה" },
+    ],
+  },
 
   bookings: [
     {
@@ -478,6 +573,7 @@ const TRIP = {
       ],
       totalEstimate: "קניות לפי צורך",
       dailyChecklist: ["מים", "חיתולים", "אוכל לדרך למחר"],
+      dinner: "שניצל עם פסטה אדומה",
     },
     {
       id: "day1",
@@ -498,6 +594,7 @@ const TRIP = {
       totalEstimate: "קניות + דלק",
       weatherTip: "היום הכי חשוב לקניות — לא לדחוס בבוקר!",
       dailyChecklist: ["רשימת קניות", "צידנית", "אורז/אוכל לפיקניק", "כרטיס Card"],
+      dinner: "שניצל עם קוסקוס וירקות",
     },
     {
       id: "day2",
@@ -515,6 +612,7 @@ const TRIP = {
       ],
       totalEstimate: "0€",
       dailyChecklist: ["כובעים", "קרם הגנה", "מים", "שכבות"],
+      dinner: "בורגר",
     },
     {
       id: "day3",
@@ -533,6 +631,8 @@ const TRIP = {
       totalEstimate: "0€ (בסיס) / תוספות אופציונליות",
       weatherTip: "רוח וקור גם בקיץ — שכבות לכולם",
       dailyChecklist: ["אישור הזמנה דכשטיין", "מעילים", "מנשא לתינוקת", "לא עגלה"],
+      dinner: "עוף בתנור עם תפוחי אדמה ואורז",
+      dinnerNote: "אופציה: על האש אם יש מנגל",
     },
     {
       id: "day4",
@@ -550,6 +650,8 @@ const TRIP = {
       ],
       totalEstimate: "0€",
       dailyChecklist: ["עגלה", "מצלמה", "אוכל לפיקניק"],
+      dinner: "קוגל תפוחי אדמה (ליל שישי)",
+      dinnerNote: "להביא מגרדת!",
     },
     {
       id: "day5",
@@ -569,6 +671,7 @@ const TRIP = {
       totalEstimate: "10€ חניה (+ מכרה אם בוחרים)",
       weatherTip: "Gosausee = תוספת טבע חינמית",
       swap: "מכרה רק אם באמת שווה — לא ברירת מחדל",
+      dinner: "שניצל חלה",
     },
     {
       id: "day6",
@@ -583,6 +686,7 @@ const TRIP = {
       ],
       totalEstimate: "0€",
       dailyChecklist: ["נרות", "פלטה", "חמין", "שעון שבת"],
+      dinner: "שבת: צונט (בוקר) · דגים (צהריים) · בשר בתנור (ערב) · חזה עוף+אורז (מוצאי)",
     },
     {
       id: "day7",
@@ -599,6 +703,7 @@ const TRIP = {
         { time: "13:30", name: "חזרה לדירה", price: "", notes: "Coaster/Flyline בתשלום", url: PLACES.rittisberg.web, maps: PLACES.waldrand.maps },
       ],
       totalEstimate: "0€",
+      dinner: "שניצל עם פלחי תפוחי אדמה",
     },
     {
       id: "day8",
@@ -618,6 +723,7 @@ const TRIP = {
       ],
       totalEstimate: "0€",
       weatherTip: "Hochwurzen = יום רגוע יותר אם עייפים",
+      dinner: "על האש — נקניקיות, קבבים, פרגיות, פיתות",
     },
     {
       id: "day9",
@@ -645,6 +751,7 @@ const TRIP = {
       dailyChecklist: ["לארוז הכל", "תיק ריק ל-Primark", "תיק יד לטיסת ערב", "לסמן מי טס מתי", "חטיפים למטוס"],
       weatherTip: "Primark = בדרך החזרה, לא סיבוב נוסף לעיר",
       swap: "עייפים? לדלג על Primark ולהגיע מוקדם ל-NH לנוח",
+      dinner: "אוכל מהבית — בדרך, Primark ו-NH",
     },
     {
       id: "day10",
@@ -749,14 +856,15 @@ const TRIP = {
   ],
 
   budget: {
+    totalNis: "~26,924 ₪",
     categories: [
-      { name: "Duplex Apartment וינה (02.08)", estimate: "⬜ €", paid: "⬜ €" },
-      { name: "Waldrand Apartments (03–11.08)", estimate: "⬜ €", paid: "⬜ €" },
-      { name: "NH Vienna Airport (11.08)", estimate: "⬜ €", paid: "⬜ €" },
-      { name: "רכב Europcar (02–12.08)", estimate: "⬜ €", paid: "⬜ €" },
+      { name: "טיסות", estimate: "12,813 ₪", paid: "12,813 ₪" },
+      { name: "Duplex Apartment וינה (02.08)", estimate: "244.79€", paid: "~857 ₪" },
+      { name: "Waldrand Apartments (03–11.08)", estimate: "2,252.84€", paid: "~7,886 ₪" },
+      { name: "NH Vienna Airport (11.08)", estimate: "159.90€", paid: "159.90€" },
+      { name: "רכב Europcar (02–12.08)", estimate: "5,368 ₪", paid: "5,368 ₪" },
       { name: "Vignette", estimate: "~11.50€", paid: "⬜ €" },
       { name: "Schladming-Dachstein Card", estimate: "⬜ €", paid: "⬜ €" },
-      { name: "טיסות", estimate: "⬜ €", paid: "⬜ €" },
       { name: "הסעות", estimate: "⬜ €", paid: "⬜ €" },
       { name: "חניה Hallstatt + אחר", estimate: "~10€", paid: "⬜ €" },
       { name: "קניות אוכל", estimate: "⬜ €", paid: "⬜ €" },
