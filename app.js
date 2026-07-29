@@ -3,7 +3,8 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '29';
+  const APP_VERSION = '30';
+  const RECENT_EDIT_MS = 10000;
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -160,9 +161,13 @@
     }
 
     applyingRemote = true;
+    const remoteShopping = {};
+    for (const [k, v] of Object.entries(remote.shopping || {})) {
+      remoteShopping[normKey(k)] = v;
+    }
     state = {
       checks: { ...(remote.checks || {}) },
-      shopping: { ...(remote.shopping || {}) },
+      shopping: remoteShopping,
       custom: mergeCustom(state.custom, remote.custom),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -266,7 +271,26 @@
     const cloudMarks = countMarksInState(remote);
     const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
 
-    if (cloudMarks > localMarks) {
+    if (cloudMarks > localMarks && recentlyEditedLocally()) {
+      const ok = await TripSync.push(state);
+      if (ok === false) {
+        syncStatus = 'error';
+        updateSyncDot();
+        if (notify) showToast('סנכרון נכשל — בדקי אינטרנט');
+        return;
+      }
+      const fresh = await TripSync.fetchOnce();
+      if (fresh && !fresh.error) {
+        TripSync.bumpLastApplied(fresh._ts || Date.now());
+        setSyncMeta({ lastAppliedRemote: fresh._ts || Date.now() });
+      }
+      syncStatus = 'live';
+      updateSyncDot();
+      if (notify) showToast(`✓ נשמר בענן · ${localMarks} סימונים`);
+      return;
+    }
+
+    if (cloudMarks > localMarks && !recentlyEditedLocally()) {
       TripSync.bumpLastApplied(remoteTs);
       applyRemoteState(remote, remoteTs, true);
       syncStatus = 'live';
@@ -589,6 +613,16 @@
     return d.innerHTML;
   }
 
+  function attrEsc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function normKey(s) {
+    return String(s == null ? '' : s).normalize('NFC');
+  }
+
   function dayImage(day) {
     if (day.placeKey && typeof PLACES !== 'undefined' && PLACES[day.placeKey]) {
       return PLACES[day.placeKey].image;
@@ -621,7 +655,11 @@
   }
 
   function shoppingKey(catId, item) {
-    return `shop-${catId}-${item}`;
+    return normKey(`shop-${catId}-${item}`);
+  }
+
+  function recentlyEditedLocally() {
+    return (Date.now() - (getSyncMeta().lastLocalEdit || 0)) < RECENT_EDIT_MS;
   }
 
   function shoppingProgress() {
@@ -696,6 +734,7 @@
   }
 
   async function init() {
+    bindCheckDelegation();
     document.getElementById('trip-title').textContent = TRIP.meta.title;
     document.title = TRIP.meta.shareTitle || TRIP.meta.title;
     document.getElementById('trip-dates').textContent = `${TRIP.meta.dates} · ${TRIP.meta.tripCore}`;
@@ -717,7 +756,7 @@
       }
     });
     window.addEventListener('pageshow', (e) => {
-      if (e.persisted) pullFromCloud(false);
+      if (e.persisted) syncWithCloud(false);
     });
   }
 
@@ -791,7 +830,6 @@
         currentTab = btn.dataset.tab;
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        if (currentTab === 'shopping') await syncWithCloud(false);
         renderMain();
         if (currentTab === 'days') openTodayDay();
       });
@@ -824,7 +862,7 @@
 
   function renderCheckItem(key, title, meta, done) {
     return `
-      <div class="check-item ${done ? 'done' : ''}" data-check="${esc(key)}">
+      <div class="check-item ${done ? 'done' : ''}" data-check="${attrEsc(key)}">
         <div class="check-box">${done ? '✓' : ''}</div>
         <div class="check-content">
           <div class="check-title">${title}</div>
@@ -962,7 +1000,15 @@
       const checklist = d.dailyChecklist ? `
         <div style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px dashed var(--border)">
           <div style="font-size:0.75rem;font-weight:700;color:var(--text-muted);margin-bottom:0.25rem">צ'קליסט יומי</div>
-          ${d.dailyChecklist.map(item => `<span class="badge badge-ok" style="margin:0.15rem">${esc(item)}</span>`).join('')}
+          ${d.dailyChecklist.map((item, i) => {
+            const chkKey = `daychk-${d.id}-${i}`;
+            const done = state.checks[chkKey];
+            return `
+              <div class="check-item day-check-item ${done ? 'done' : ''}" data-check="${attrEsc(chkKey)}">
+                <div class="check-box">${done ? '✓' : ''}</div>
+                <div class="check-content"><div class="check-title">${esc(item)}</div></div>
+              </div>`;
+          }).join('')}
         </div>` : '';
 
       return `
@@ -1015,7 +1061,7 @@
     const key = shoppingKey(catId, item);
     const isDone = state.shopping[key];
     return `
-      <div class="check-item ${isDone ? 'done' : ''} ${isCustom ? 'item-custom' : ''}" data-shop="${esc(key)}">
+      <div class="check-item ${isDone ? 'done' : ''} ${isCustom ? 'item-custom' : ''}" data-shop="${attrEsc(key)}">
         <div class="check-box">${isDone ? '✓' : ''}</div>
         <div class="check-content">
           <div class="check-title">${isCustom ? '<span class="custom-tag">+</span> ' : ''}${esc(item)}</div>
@@ -1116,7 +1162,7 @@
       const cost = [r.costEur, r.costNis].filter(Boolean).join(' · ');
       return `
         <div class="reservation-row ${cancelled ? 'reservation-cancelled' : ''}">
-          <div class="reservation-name">${cancelled ? '❌' : '✅'} ${esc(r.name)}</div>
+          <div class="reservation-name"><span class="reservation-badge">${cancelled ? 'בוטל' : 'מאושר'}</span> ${esc(r.name)}</div>
           ${cost ? `<div class="reservation-cost">${esc(cost)}</div>` : ''}
           ${r.cancelBy ? `<div class="reservation-meta">ביטול חינם עד: ${esc(r.cancelBy)}</div>` : ''}
           ${r.notes ? `<div class="reservation-meta">${esc(r.notes)}</div>` : ''}
@@ -1143,7 +1189,7 @@
     const customBookingItems = (state.custom.bookings || []).map(b => {
       const done = state.checks['booking-custom-' + b.id];
       return `
-        <div class="check-item ${done ? 'done' : ''} item-custom" data-check="booking-custom-${esc(b.id)}">
+        <div class="check-item ${done ? 'done' : ''} item-custom" data-check="${attrEsc('booking-custom-' + b.id)}">
           <div class="check-box">${done ? '✓' : ''}</div>
           <div class="check-content">
             <div class="check-title"><span class="custom-tag">שלי</span> ${esc(b.what)}</div>
@@ -1296,7 +1342,7 @@
           <div class="shopping-cat-title"><span>${esc(cat)}</span></div>
           ${items.map(i => renderCheckItem('forget-' + i.id, esc(i.text), '', state.checks['forget-' + i.id])).join('')}
           ${customInCat.map(i => `
-            <div class="check-item item-custom ${state.checks['forget-custom-' + i.id] ? 'done' : ''}" data-check="forget-custom-${esc(i.id)}">
+            <div class="check-item item-custom ${state.checks['forget-custom-' + i.id] ? 'done' : ''}" data-check="${attrEsc('forget-custom-' + i.id)}">
               <div class="check-box">${state.checks['forget-custom-' + i.id] ? '✓' : ''}</div>
               <div class="check-content"><div class="check-title"><span class="custom-tag">+</span> ${esc(i.text)}</div></div>
               ${renderDeleteBtn('del-forget', i.id)}
@@ -1310,7 +1356,7 @@
       <div class="card">
         <div class="shopping-cat-title"><span>אישי</span></div>
         ${personalCat.map(i => `
-          <div class="check-item item-custom ${state.checks['forget-custom-' + i.id] ? 'done' : ''}" data-check="forget-custom-${esc(i.id)}">
+          <div class="check-item item-custom ${state.checks['forget-custom-' + i.id] ? 'done' : ''}" data-check="${attrEsc('forget-custom-' + i.id)}">
             <div class="check-box">${state.checks['forget-custom-' + i.id] ? '✓' : ''}</div>
             <div class="check-content"><div class="check-title">${esc(i.text)}</div></div>
             ${renderDeleteBtn('del-forget', i.id)}
@@ -1336,7 +1382,7 @@
           </div>
           ${cat.items.map((item, i) => renderCheckItem(`pretrip-${cat.id}-${i}`, esc(item), '', state.checks[`pretrip-${cat.id}-${i}`])).join('')}
           ${extra.map(e => `
-            <div class="check-item item-custom ${state.checks['pretrip-custom-' + e.id] ? 'done' : ''}" data-check="pretrip-custom-${esc(e.id)}">
+            <div class="check-item item-custom ${state.checks['pretrip-custom-' + e.id] ? 'done' : ''}" data-check="${attrEsc('pretrip-custom-' + e.id)}">
               <div class="check-box">${state.checks['pretrip-custom-' + e.id] ? '✓' : ''}</div>
               <div class="check-content"><div class="check-title"><span class="custom-tag">+</span> ${esc(e.text)}</div></div>
               ${renderDeleteBtn('del-pretrip', e.id)}
@@ -1410,12 +1456,17 @@
         <div class="card-title">סיכום עלויות</div>
         ${TRIP.budget.totalNis ? `<div class="reservation-total" style="margin-bottom:0.75rem">סה"כ מהאקסל: <strong>${esc(TRIP.budget.totalNis)}</strong></div>` : ''}
         <p style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.5rem">שורות עם + נוספו על ידך</p>
-        ${TRIP.budget.categories.map(c => `
-          <div class="budget-row">
-            <span>${esc(c.name)}</span>
+        ${TRIP.budget.categories.map((c, i) => {
+          const paidKey = `budget-paid-${i}`;
+          const isPaid = state.checks[paidKey];
+          return `
+          <div class="budget-row check-item ${isPaid ? 'done' : ''}" data-check="${attrEsc(paidKey)}">
+            <div class="check-box">${isPaid ? '✓' : ''}</div>
+            <span style="flex:1">${esc(c.name)}</span>
             <span style="color:var(--text-muted);font-size:0.8rem">${esc(c.estimate)}</span>
-            <span class="budget-paid">${esc(c.paid)}</span>
-          </div>`).join('')}
+            <span class="budget-paid">${esc(isPaid ? (c.paid || '✓') : '⬜')}</span>
+          </div>`;
+        }).join('')}
         ${customRows}
         ${renderAddBar({ type: 'budget', placeholder: 'הוסיפי שורת הוצאה (למשל: ביטוח נסיעות)' })}
       </div>`;
@@ -1571,31 +1622,44 @@
     });
   }
 
-  function bindDynamicEvents() {
-    document.querySelectorAll('[data-toggle-day]').forEach(el => {
-      el.addEventListener('click', () => el.closest('.day-card').classList.toggle('open'));
-    });
+  function bindCheckDelegation() {
+    const main = document.getElementById('main-content');
+    if (!main || main.dataset.checkBound) return;
+    main.dataset.checkBound = '1';
 
-    document.querySelectorAll('[data-check]').forEach(el => {
-      el.addEventListener('click', () => {
-        const key = el.dataset.check;
-        if (state.checks[key]) delete state.checks[key];
-        else state.checks[key] = true;
-        saveState();
-        renderMain();
-        showToast(state.checks[key] ? '✓ סומן' : 'בוטל · נשמר בענן');
-      });
-    });
+    main.addEventListener('click', (e) => {
+      if (e.target.closest('.del-btn, .check-link, .link-btn, .maps-btn, .add-bar, textarea, input, button, a')) {
+        return;
+      }
 
-    document.querySelectorAll('[data-shop]').forEach(el => {
-      el.addEventListener('click', () => {
-        const key = el.dataset.shop;
+      const shopEl = e.target.closest('[data-shop]');
+      if (shopEl) {
+        const key = normKey(shopEl.getAttribute('data-shop'));
+        if (!key) return;
         if (state.shopping[key]) delete state.shopping[key];
         else state.shopping[key] = true;
         saveState();
         renderMain();
         showToast(state.shopping[key] ? '✓ נקנה · נשמר בענן' : 'הוסר · נשמר בענן');
-      });
+        return;
+      }
+
+      const checkEl = e.target.closest('[data-check]');
+      if (checkEl) {
+        const key = checkEl.getAttribute('data-check');
+        if (!key) return;
+        if (state.checks[key]) delete state.checks[key];
+        else state.checks[key] = true;
+        saveState();
+        renderMain();
+        showToast(state.checks[key] ? '✓ סומן' : 'בוטל · נשמר בענן');
+      }
+    });
+  }
+
+  function bindDynamicEvents() {
+    document.querySelectorAll('[data-toggle-day]').forEach(el => {
+      el.addEventListener('click', () => el.closest('.day-card').classList.toggle('open'));
     });
 
     document.getElementById('shopping-search')?.addEventListener('input', e => {
@@ -1639,6 +1703,7 @@
         document.getElementById('sub-panel').innerHTML = renderSubPanel(moreSubTab);
         document.querySelectorAll('.more-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.moreTab === moreSubTab));
         bindCustomEvents();
+        bindDynamicEvents();
       });
     });
 
