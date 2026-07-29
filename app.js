@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '25';
+  const APP_VERSION = '26';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -152,13 +152,26 @@
     }
   }
 
-  function mergeBoolMaps(local, remote) {
-    const out = { ...(local || {}) };
-    for (const [k, v] of Object.entries(remote || {})) {
-      if (v) out[k] = true;
-      else if (!(k in out)) out[k] = v;
+  function applyRemoteState(remote, remoteTs, force) {
+    const ts = remoteTs || remote._ts || 0;
+    const meta = getSyncMeta();
+    if (!force && (meta.lastLocalEdit || 0) > ts) {
+      return;
     }
-    return out;
+
+    applyingRemote = true;
+    state = {
+      checks: { ...(remote.checks || {}) },
+      shopping: { ...(remote.shopping || {}) },
+      custom: mergeCustom(state.custom, remote.custom),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setSyncMeta({ lastAppliedRemote: ts });
+    renderMain();
+    updateBadges();
+    syncStatus = 'live';
+    updateSyncDot();
+    applyingRemote = false;
   }
 
   function mergeCustom(local, remote) {
@@ -176,23 +189,6 @@
       budget: [...(incoming.budget || []), ...(base.budget || [])],
       shoppingCats: [...(incoming.shoppingCats || []), ...(base.shoppingCats || [])],
     };
-  }
-
-  function applyRemoteState(remote, remoteTs) {
-    applyingRemote = true;
-    state = {
-      checks: mergeBoolMaps(state.checks, remote.checks),
-      shopping: mergeBoolMaps(state.shopping, remote.shopping),
-      custom: mergeCustom(state.custom, remote.custom),
-    };
-    const ts = remoteTs || remote._ts || Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    setSyncMeta({ lastAppliedRemote: ts, lastLocalEdit: ts });
-    renderMain();
-    updateBadges();
-    syncStatus = 'live';
-    updateSyncDot();
-    applyingRemote = false;
   }
 
   function countMarksInState(s) {
@@ -233,11 +229,11 @@
       const fresh = await TripSync.fetchOnce();
       if (fresh && !fresh.error) {
         TripSync.bumpLastApplied(fresh._ts || Date.now());
-        applyRemoteState(fresh, fresh._ts);
+        applyRemoteState(fresh, fresh._ts, true);
       }
     } else {
       TripSync.bumpLastApplied(remote._ts || Date.now());
-      applyRemoteState(remote, remote._ts);
+      applyRemoteState(remote, remote._ts, isStandalonePwa());
       if (!isStandalonePwa() && localMarks > 0 && cloudMarks === 0) {
         await TripSync.push(state);
       }
@@ -296,7 +292,7 @@
 
     if (needsApply) {
       TripSync.bumpLastApplied(remote._ts);
-      applyRemoteState(remote, remote._ts);
+      applyRemoteState(remote, remote._ts, force);
     }
 
     syncStatus = 'live';
@@ -486,7 +482,7 @@
       const remote = await TripSync.fetchOnce();
       if (remote && !remote.error && remote._ts) {
         TripSync.bumpLastApplied(remote._ts);
-        applyRemoteState(remote, remote._ts);
+        applyRemoteState(remote, remote._ts, true);
         showToast('✓ הצטרפת לקבוצה ' + code);
       } else {
         await TripSync.push(state);
@@ -1508,20 +1504,22 @@
     document.querySelectorAll('[data-check]').forEach(el => {
       el.addEventListener('click', () => {
         const key = el.dataset.check;
-        state.checks[key] = !state.checks[key];
+        if (state.checks[key]) delete state.checks[key];
+        else state.checks[key] = true;
         saveState();
         renderMain();
-        showToast(state.checks[key] ? '✓ סומן' : 'בוטל');
+        showToast(state.checks[key] ? '✓ סומן' : 'בוטל · נשמר בענן');
       });
     });
 
     document.querySelectorAll('[data-shop]').forEach(el => {
       el.addEventListener('click', () => {
         const key = el.dataset.shop;
-        state.shopping[key] = !state.shopping[key];
+        if (state.shopping[key]) delete state.shopping[key];
+        else state.shopping[key] = true;
         saveState();
         renderMain();
-        showToast(state.shopping[key] ? '✓ נקנה · נשמר בענן' : 'הוסר מהרשימה');
+        showToast(state.shopping[key] ? '✓ נקנה · נשמר בענן' : 'הוסר · נשמר בענן');
       });
     });
 

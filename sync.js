@@ -177,20 +177,6 @@ window.TripSync = (function () {
     return null;
   }
 
-  function mergeBoolMaps(a, b) {
-    const out = { ...(a || {}) };
-    for (const [k, v] of Object.entries(b || {})) {
-      if (v) out[k] = true;
-      else if (!(k in out)) out[k] = v;
-    }
-    return out;
-  }
-
-  function countMarks(data) {
-    const checks = Object.values(data?.checks || {}).filter(Boolean).length;
-    const shopping = Object.values(data?.shopping || {}).filter(Boolean).length;
-    return checks + shopping;
-  }
 
   function mergeCustom(a, b) {
     const x = a || {};
@@ -215,25 +201,13 @@ window.TripSync = (function () {
     if (!sb) return false;
 
     const existing = await supabaseFetch(room);
-    const localMarks = countMarks(state);
-    const cloudMarks = countMarks(existing);
-
-    if (localMarks === 0 && cloudMarks > 0) {
-      return true;
-    }
-
-    const merged = {
-      checks: mergeBoolMaps(existing?.checks, state.checks),
-      shopping: mergeBoolMaps(existing?.shopping, state.shopping),
-      custom: mergeCustom(existing?.custom, state.custom),
-    };
 
     const ts = Date.now();
     const body = {
       room_id: room,
-      checks: merged.checks,
-      shopping: merged.shopping,
-      custom: merged.custom,
+      checks: { ...(state.checks || {}) },
+      shopping: { ...(state.shopping || {}) },
+      custom: mergeCustom(existing?.custom, state.custom),
       updated_at: ts,
     };
     try {
