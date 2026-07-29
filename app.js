@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '24';
+  const APP_VERSION = '25';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -195,7 +195,12 @@
     applyingRemote = false;
   }
 
-  function initSync() {
+  function countMarksInState(s) {
+    return Object.values(s?.checks || {}).filter(Boolean).length
+      + Object.values(s?.shopping || {}).filter(Boolean).length;
+  }
+
+  async function initSync() {
     if (typeof TripSync === 'undefined') return;
 
     const urlCode = new URLSearchParams(location.search).get('g');
@@ -213,16 +218,33 @@
       return;
     }
 
-    TripSync.fetchOnce().then(remote => {
-      if (remote && !remote.error && remote._ts) {
-        TripSync.bumpLastApplied(remote._ts);
-        applyRemoteState(remote, remote._ts);
-      } else if (!isFirstJoinViaLink && stateHasMarks(state)) {
-        TripSync.push(state);
-      }
-      syncStatus = 'live';
+    const remote = await TripSync.fetchOnce();
+    if (remote?.error) {
+      syncStatus = 'error';
       updateSyncDot();
-    });
+      return;
+    }
+
+    const localMarks = countMarksInState(state);
+    const cloudMarks = countMarksInState(remote);
+
+    if (!isStandalonePwa() && localMarks > cloudMarks) {
+      await TripSync.push(state);
+      const fresh = await TripSync.fetchOnce();
+      if (fresh && !fresh.error) {
+        TripSync.bumpLastApplied(fresh._ts || Date.now());
+        applyRemoteState(fresh, fresh._ts);
+      }
+    } else {
+      TripSync.bumpLastApplied(remote._ts || Date.now());
+      applyRemoteState(remote, remote._ts);
+      if (!isStandalonePwa() && localMarks > 0 && cloudMarks === 0) {
+        await TripSync.push(state);
+      }
+    }
+
+    syncStatus = 'live';
+    updateSyncDot();
   }
 
   async function pullFromCloud(notify, force) {
@@ -626,7 +648,7 @@
   async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
-      const reg = await navigator.serviceWorker.register('sw.js?v=23');
+      const reg = await navigator.serviceWorker.register('sw.js?v=25');
       await reg.update();
 
       const showUpdateBanner = () => {
@@ -660,7 +682,7 @@
     } catch { /* offline or blocked */ }
   }
 
-  function init() {
+  async function init() {
     document.getElementById('trip-title').textContent = TRIP.meta.title;
     document.title = TRIP.meta.shareTitle || TRIP.meta.title;
     document.getElementById('trip-dates').textContent = `${TRIP.meta.dates} · ${TRIP.meta.tripCore}`;
@@ -671,9 +693,11 @@
     bindNav();
     updateBadges();
     openTodayDay();
-    initSync();
+    await initSync();
     initServiceWorker();
-    setTimeout(() => pullFromCloud(false), 800);
+    if (isStandalonePwa()) {
+      await pullFromCloud(false, true);
+    }
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         pullFromCloud(false);
@@ -754,7 +778,7 @@
         currentTab = btn.dataset.tab;
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        if (currentTab === 'shopping') await pullFromCloud(false);
+        if (currentTab === 'shopping') await pullFromCloud(false, true);
         renderMain();
         if (currentTab === 'days') openTodayDay();
       });
@@ -1497,7 +1521,7 @@
         state.shopping[key] = !state.shopping[key];
         saveState();
         renderMain();
-        showToast(state.shopping[key] ? '✓ נקנה' : 'הוסר מהרשימה');
+        showToast(state.shopping[key] ? '✓ נקנה · נשמר בענן' : 'הוסר מהרשימה');
       });
     });
 
