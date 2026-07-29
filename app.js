@@ -3,6 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
+  const APP_VERSION = '23';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -249,7 +250,13 @@
     if (remote?.error) {
       syncStatus = 'error';
       updateSyncDot();
-      if (notify) showToast('🔴 בעיית רשת — ודאי שיש WiFi/סלולר ונסי שוב');
+      if (notify) {
+        if (isStandalonePwa()) {
+          showToast('📱 מחקי אייקון → פתחי ב-Safari → הוסיפי מחדש');
+        } else {
+          showToast('🔴 בעיית רשת — ודאי שיש WiFi/סלולר ונסי שוב');
+        }
+      }
       return;
     }
     if (!remote || !remote._ts) {
@@ -336,7 +343,7 @@
     return `
       <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
       <div class="card group-card group-card-live">
-        <div class="card-title">🟢 קבוצה פעילה: <span class="room-code">${esc(room)}</span></div>
+        <div class="card-title">🟢 קבוצה פעילה: <span class="room-code">${esc(room)}</span> <span style="font-size:0.7rem;color:var(--text-muted)">v${APP_VERSION}</span></div>
         ${cloud
           ? '<p class="group-hint">סנכרון אוטומטי פעיל — בעלך רואה שינויים בזמן אמת.</p>'
           : '<p class="group-hint"><strong>שלחי לבעל את הקישור</strong> — הוא יראה את הסימונים שלך.<br>אחרי שינויים חדשים — לחצי שוב «שלחי עדכון».</p>'}
@@ -605,8 +612,8 @@
 
     if (isInAppBrowser()) {
       parts.push('<div class="open-hint open-hint-warn">⚠️ פתחת מתוך וואטסאפ — הסנכרון לא תמיד עובד כאן.<br><strong>לחצי ⋯ למעלה → «פתיחה בדפדפן»</strong> (Safari / Chrome)</div>');
-    } else if (isStandalonePwa() && !fromLink) {
-      parts.push(`<div class="open-hint open-hint-warn">📱 נפתח מ<strong>מסך הבית</strong> — לפעמים זה גרסה ישנה.<br>אם חסרים סימונים: מחקי את האייקון, פתחי את הקישור בדפדפן, ואז «הוסף למסך הבית» מחדש.${room ? ` (קבוצה: ${esc(room)})` : ''}</div>`);
+    } else if (isStandalonePwa()) {
+      parts.push(`<div class="open-hint open-hint-warn">📱 <strong>מסך הבית (iPhone):</strong> האייקון לא מתעדכן לבד!<br>אם יש בעיית רשת — <strong>מחקי את האייקון</strong>, פתחי את הקישור ב-Safari, ואז הוסיפי שוב.<br>גרסה נוכחית: <strong>${APP_VERSION}</strong>${room ? ` · קבוצה: ${esc(room)}` : ''}</div>`);
     }
 
     if (!room) {
@@ -619,7 +626,7 @@
   async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
-      const reg = await navigator.serviceWorker.register('sw.js?v=21');
+      const reg = await navigator.serviceWorker.register('sw.js?v=23');
       await reg.update();
 
       const showUpdateBanner = () => {

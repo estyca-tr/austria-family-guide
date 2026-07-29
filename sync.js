@@ -18,21 +18,13 @@ window.TripSync = (function () {
   let lastAppliedTs = 0;
 
   function getSupabase() {
-    const candidates = [];
-    try {
-      const stored = localStorage.getItem(CONFIG_KEY);
-      if (stored) candidates.push(JSON.parse(stored));
-    } catch { /* ignore */ }
     if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
-      candidates.push({ url: window.SUPABASE_URL, key: window.SUPABASE_ANON_KEY });
+      return {
+        url: String(window.SUPABASE_URL).replace(/\/$/, ''),
+        key: String(window.SUPABASE_ANON_KEY),
+      };
     }
-    candidates.push(FALLBACK_SB);
-    for (const c of candidates) {
-      if (c && c.url && c.key) {
-        return { url: String(c.url).replace(/\/$/, ''), key: String(c.key) };
-      }
-    }
-    return null;
+    return { url: FALLBACK_SB.url, key: FALLBACK_SB.key };
   }
 
   function saveSupabase(url, key) {
@@ -166,11 +158,9 @@ window.TripSync = (function () {
       try {
         const res = await fetch(endpoint, {
           method: 'GET',
-          mode: 'cors',
           cache: 'no-store',
           headers: {
             apikey: sb.key,
-            Authorization: 'Bearer ' + sb.key,
             Accept: 'application/json',
           },
         });
@@ -203,7 +193,6 @@ window.TripSync = (function () {
         method: 'POST',
         headers: {
           apikey: sb.key,
-          Authorization: 'Bearer ' + sb.key,
           'Content-Type': 'application/json',
           Prefer: 'resolution=merge-duplicates,return=minimal',
         },
