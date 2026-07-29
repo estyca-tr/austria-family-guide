@@ -224,15 +224,47 @@
     });
   }
 
-  async function pullFromCloud(notify) {
-    if (typeof TripSync === 'undefined' || !TripSync.getRoomId()) return;
+  async function pullFromCloud(notify, force) {
+    if (typeof TripSync === 'undefined' || !TripSync.getRoomId()) {
+      if (notify) showToast('אין קבוצה פעילה');
+      return;
+    }
+
+    syncStatus = 'pending';
+    updateSyncDot();
+
     const remote = await TripSync.fetchOnce();
-    if (!remote || !remote._ts) return;
+    if (!remote || !remote._ts) {
+      syncStatus = 'error';
+      updateSyncDot();
+      if (notify) showToast('🔴 לא הצלחנו לטעון מהענן');
+      return;
+    }
+
+    const markCount = Object.keys(remote.checks || {}).filter((k) => remote.checks[k]).length
+      + Object.keys(remote.shopping || {}).filter((k) => remote.shopping[k]).length;
+    const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
     const meta = getSyncMeta();
-    if (remote._ts <= (meta.lastAppliedRemote || 0)) return;
-    TripSync.bumpLastApplied(remote._ts);
-    applyRemoteState(remote, remote._ts);
-    if (notify) showToast('✓ עודכן מהענן');
+    const needsApply = force || remote._ts > (meta.lastAppliedRemote || 0);
+
+    if (needsApply) {
+      TripSync.bumpLastApplied(remote._ts);
+      applyRemoteState(remote, remote._ts);
+    }
+
+    syncStatus = 'live';
+    updateSyncDot();
+
+    if (!notify) return;
+
+    const after = JSON.stringify({ checks: state.checks, shopping: state.shopping });
+    if (needsApply && before !== after) {
+      showToast('✓ עודכן מהענן');
+    } else if (markCount > 0) {
+      showToast(`✓ מסונכרן · ${markCount} סימונים בענן`);
+    } else {
+      showToast('✓ מחובר — אין עדיין סימונים בענן');
+    }
   }
 
   function updateSyncDot() {
@@ -416,9 +448,17 @@
       renderMain();
     });
 
-    document.getElementById('sync-refresh-btn')?.addEventListener('click', async () => {
-      await pullFromCloud(true);
-    });
+    const refreshBtn = document.getElementById('sync-refresh-btn');
+    if (refreshBtn) {
+      refreshBtn.onclick = async () => {
+        refreshBtn.disabled = true;
+        const label = refreshBtn.textContent;
+        refreshBtn.textContent = '⏳ מרענן...';
+        await pullFromCloud(true, true);
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = label;
+      };
+    }
 
     document.getElementById('copy-group-link-btn')?.addEventListener('click', () => {
       const room = TripSync.getRoomId();

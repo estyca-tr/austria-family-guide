@@ -1,5 +1,5 @@
 /* Network-first: always fetch fresh app files. No stale precache. */
-const VERSION = 'austria-trip-v19';
+const VERSION = 'austria-trip-v20';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
