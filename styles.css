@@ -1053,6 +1053,82 @@ body {
 
 .budget-paid { color: var(--green); font-weight: 600; font-size: 0.8rem; }
 
+.meal-box {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.65rem;
+  background: #fff8f0;
+  border: 1px solid #f0dcc4;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.meal-row {
+  padding: 0.55rem 0;
+  border-bottom: 1px dashed var(--border);
+}
+
+.meal-row:last-child { border-bottom: none; }
+
+.meal-date {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+
+.meal-title {
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.meal-note {
+  font-size: 0.78rem;
+  color: var(--green-dark);
+  margin-top: 0.2rem;
+}
+
+.shabbat-meals-list {
+  margin: 0.35rem 0 0;
+  padding-right: 1.1rem;
+  font-size: 0.84rem;
+}
+
+.reservation-row {
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.reservation-row:last-child { border-bottom: none; }
+
+.reservation-cancelled {
+  opacity: 0.55;
+}
+
+.reservation-name {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.reservation-cost {
+  color: var(--green-dark);
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.reservation-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+.reservation-total {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 2px solid var(--green);
+  font-size: 0.9rem;
+}
+
 /* Kosher */
 .app-card {
   padding: 0.65rem 0;
