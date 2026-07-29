@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '26';
+  const APP_VERSION = '27';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -221,10 +221,11 @@
       return;
     }
 
-    const localMarks = countMarksInState(state);
-    const cloudMarks = countMarksInState(remote);
+    const meta = getSyncMeta();
+    const remoteTs = remote._ts || 0;
+    const localEditTs = meta.lastLocalEdit || 0;
 
-    if (!isStandalonePwa() && localMarks > cloudMarks) {
+    if (localEditTs > remoteTs) {
       await TripSync.push(state);
       const fresh = await TripSync.fetchOnce();
       if (fresh && !fresh.error) {
@@ -232,11 +233,8 @@
         applyRemoteState(fresh, fresh._ts, true);
       }
     } else {
-      TripSync.bumpLastApplied(remote._ts || Date.now());
-      applyRemoteState(remote, remote._ts, isStandalonePwa());
-      if (!isStandalonePwa() && localMarks > 0 && cloudMarks === 0) {
-        await TripSync.push(state);
-      }
+      TripSync.bumpLastApplied(remoteTs);
+      applyRemoteState(remote, remoteTs, true);
     }
 
     syncStatus = 'live';
@@ -288,11 +286,14 @@
       + Object.keys(remote.shopping || {}).filter((k) => remote.shopping[k]).length;
     const before = JSON.stringify({ checks: state.checks, shopping: state.shopping });
     const meta = getSyncMeta();
-    const needsApply = force || remote._ts > (meta.lastAppliedRemote || 0);
+    const localEditTs = meta.lastLocalEdit || 0;
+    const cloudIsNewer = remote._ts > (meta.lastAppliedRemote || 0);
+    const localNotNewerThanCloud = localEditTs <= remote._ts;
+    const needsApply = force || (cloudIsNewer && localNotNewerThanCloud);
 
     if (needsApply) {
       TripSync.bumpLastApplied(remote._ts);
-      applyRemoteState(remote, remote._ts, force);
+      applyRemoteState(remote, remote._ts, force || localNotNewerThanCloud);
     }
 
     syncStatus = 'live';
@@ -691,9 +692,6 @@
     openTodayDay();
     await initSync();
     initServiceWorker();
-    if (isStandalonePwa()) {
-      await pullFromCloud(false, true);
-    }
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         pullFromCloud(false);
@@ -701,6 +699,9 @@
           navigator.serviceWorker.getRegistration().then(r => r?.update());
         }
       }
+    });
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted) pullFromCloud(false);
     });
   }
 
