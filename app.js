@@ -2,6 +2,7 @@
   'use strict';
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
+  const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -21,6 +22,30 @@
       budget: [],
       bookings: [],
     };
+  }
+
+  function getSyncMeta() {
+    try {
+      return JSON.parse(localStorage.getItem(SYNC_META_KEY) || '{}');
+    } catch {
+      return {};
+    }
+  }
+
+  function setSyncMeta(patch) {
+    const meta = { ...getSyncMeta(), ...patch };
+    localStorage.setItem(SYNC_META_KEY, JSON.stringify(meta));
+    return meta;
+  }
+
+  function stateHasMarks(s) {
+    const checks = Object.keys(s.checks || {}).length;
+    const shopping = Object.keys(s.shopping || {}).length;
+    const c = s.custom || {};
+    const custom = (c.forget || []).length + (c.bookings || []).length
+      + Object.keys(c.dayNotes || {}).length + Object.keys(c.stayNotes || {}).length
+      + Object.keys(c.shopping || {}).length + (c.shoppingCats || []).length;
+    return checks + shopping + custom > 0;
   }
 
   function loadState() {
@@ -105,14 +130,18 @@
   function saveState() {
     const now = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem(STORAGE_KEY + '-ts', String(now));
+    setSyncMeta({ lastLocalEdit: now });
     if (!applyingRemote && typeof TripSync !== 'undefined' && TripSync.getRoomId()) {
       syncStatus = 'pending';
       updateSyncDot();
       TripSync.push(state).then(ok => {
         syncStatus = ok === false ? 'error' : 'live';
         updateSyncDot();
-        if (ok === false) showToast('סנכרון נכשל — בדקי אינטרנט');
+        if (ok === false) {
+          showToast('סנכרון נכשל — בדקי אינטרנט');
+        } else if (ok) {
+          setSyncMeta({ lastAppliedRemote: Date.now() });
+        }
         const urlEl = document.getElementById('group-share-url');
         if (urlEl && !TripSync.hasCloud()) {
           urlEl.textContent = TripSync.groupShareUrl(TripSync.getRoomId(), state);
@@ -121,15 +150,16 @@
     }
   }
 
-  function applyRemoteState(remote) {
+  function applyRemoteState(remote, remoteTs) {
     applyingRemote = true;
     state = {
       checks: remote.checks || {},
       shopping: remote.shopping || {},
       custom: { ...defaultCustom(), ...(remote.custom || {}) },
     };
+    const ts = remoteTs || remote._ts || Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    localStorage.setItem(STORAGE_KEY + '-ts', String(Date.now()));
+    setSyncMeta({ lastAppliedRemote: ts, lastLocalEdit: ts });
     renderMain();
     updateBadges();
     syncStatus = 'live';
@@ -157,19 +187,35 @@
 
     TripSync.fetchOnce().then(remote => {
       if (remote && remote._ts) {
-        const localTs = parseInt(localStorage.getItem(STORAGE_KEY + '-ts') || '0', 10);
-        if (isFirstJoinViaLink || remote._ts >= localTs) {
+        const remoteHasData = stateHasMarks(remote);
+        const localHasData = stateHasMarks(state);
+        // In a shared room: always load cloud on first open via link, or when cloud has
+        // marks and local is empty, or when cloud is newer than last applied remote.
+        const meta = getSyncMeta();
+        const cloudIsNewer = remote._ts > (meta.lastAppliedRemote || 0);
+        if (isFirstJoinViaLink || (remoteHasData && !localHasData) || cloudIsNewer) {
           TripSync.bumpLastApplied(remote._ts);
-          applyRemoteState(remote);
+          applyRemoteState(remote, remote._ts);
         } else {
           TripSync.push(state);
         }
-      } else if (!isFirstJoinViaLink) {
+      } else if (!isFirstJoinViaLink && stateHasMarks(state)) {
         TripSync.push(state);
       }
       syncStatus = 'live';
       updateSyncDot();
     });
+  }
+
+  async function pullFromCloud(notify) {
+    if (typeof TripSync === 'undefined' || !TripSync.getRoomId()) return;
+    const remote = await TripSync.fetchOnce();
+    if (!remote || !remote._ts) return;
+    const meta = getSyncMeta();
+    if (remote._ts <= (meta.lastAppliedRemote || 0)) return;
+    TripSync.bumpLastApplied(remote._ts);
+    applyRemoteState(remote, remote._ts);
+    if (notify) showToast('✓ עודכן מהענן');
   }
 
   function updateSyncDot() {
@@ -233,6 +279,7 @@
         </div>
         <button type="button" class="maps-btn husband-wa-btn" id="whatsapp-husband-btn">💬 ${cloud ? 'שלחי לבעל בוואטסאפ' : 'שלחי / עדכני את בעלך בוואטסאפ'}</button>
         <button type="button" class="maps-btn" id="copy-group-link-btn">📋 העתקת קישור</button>
+        ${cloud ? '<button type="button" class="maps-btn" id="sync-refresh-btn" style="background:var(--green-light);margin-top:0.35rem">🔄 רענן עכשיו מהענן</button>' : ''}
         ${cloud ? `
         <div class="couple-invite-box">
           <p class="group-hint"><strong>זוג שמטייל איתכם?</strong> שלחי להם את המדריך — הם רק יוצרים קבוצה חדשה (בלי הגדרות טכניות).</p>
@@ -343,13 +390,17 @@
       const remote = await TripSync.fetchOnce();
       if (remote && remote._ts) {
         TripSync.bumpLastApplied(remote._ts);
-        applyRemoteState(remote);
+        applyRemoteState(remote, remote._ts);
         showToast('✓ הצטרפת לקבוצה ' + code);
       } else {
         await TripSync.push(state);
         showToast('✓ הצטרפת — העלית את הסימונים שלך');
       }
       renderMain();
+    });
+
+    document.getElementById('sync-refresh-btn')?.addEventListener('click', async () => {
+      await pullFromCloud(true);
     });
 
     document.getElementById('copy-group-link-btn')?.addEventListener('click', () => {
@@ -474,9 +525,12 @@
     updateBadges();
     openTodayDay();
     initSync();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') pullFromCloud(false);
+    });
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=13').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=16').catch(() => {});
     }
   }
 

@@ -4,7 +4,7 @@ window.TripSync = (function () {
 
   const ROOM_KEY = 'austria-trip-room';
   const CONFIG_KEY = 'austria-supabase-config';
-  const POLL_MS = 3000;
+  const POLL_MS = 2000;
   let roomId = null;
   let onRemoteCallback = null;
   let pushTimer = null;
@@ -181,6 +181,7 @@ window.TripSync = (function () {
           checks: remote.checks || {},
           shopping: remote.shopping || {},
           custom: remote.custom || {},
+          _ts: remote._ts,
         }, remote._ts);
       }
     }, POLL_MS);
@@ -233,14 +234,15 @@ window.TripSync = (function () {
   }
 
   function push(state) {
-    if (!roomId) return Promise.resolve();
+    if (!roomId) return Promise.resolve(false);
     clearTimeout(pushTimer);
     return new Promise(resolve => {
       pushTimer = setTimeout(async () => {
         if (hasCloud()) {
-          await supabasePush(roomId, state);
+          resolve(await supabasePush(roomId, state));
+        } else {
+          resolve(true);
         }
-        resolve();
       }, 350);
     });
   }
