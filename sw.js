@@ -1,5 +1,5 @@
 /* Network-only SW — enables iOS PWA updates without caching stale files */
-const SW_VERSION = 'austria-trip-v23';
+const SW_VERSION = 'austria-trip-v24';
 
 self.addEventListener('install', () => {
   self.skipWaiting();

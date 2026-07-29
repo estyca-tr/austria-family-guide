@@ -177,15 +177,63 @@ window.TripSync = (function () {
     return null;
   }
 
+  function mergeBoolMaps(a, b) {
+    const out = { ...(a || {}) };
+    for (const [k, v] of Object.entries(b || {})) {
+      if (v) out[k] = true;
+      else if (!(k in out)) out[k] = v;
+    }
+    return out;
+  }
+
+  function countMarks(data) {
+    const checks = Object.values(data?.checks || {}).filter(Boolean).length;
+    const shopping = Object.values(data?.shopping || {}).filter(Boolean).length;
+    return checks + shopping;
+  }
+
+  function mergeCustom(a, b) {
+    const x = a || {};
+    const y = b || {};
+    return {
+      ...x,
+      ...y,
+      shopping: { ...(x.shopping || {}), ...(y.shopping || {}) },
+      dayNotes: { ...(x.dayNotes || {}), ...(y.dayNotes || {}) },
+      stayNotes: { ...(x.stayNotes || {}), ...(y.stayNotes || {}) },
+      activities: { ...(x.activities || {}), ...(y.activities || {}) },
+      pretrip: { ...(x.pretrip || {}), ...(y.pretrip || {}) },
+      forget: [...(x.forget || []), ...(y.forget || [])],
+      bookings: [...(x.bookings || []), ...(y.bookings || [])],
+      budget: [...(x.budget || []), ...(y.budget || [])],
+      shoppingCats: [...(x.shoppingCats || []), ...(y.shoppingCats || [])],
+    };
+  }
+
   async function supabasePush(room, state) {
     const sb = getSupabase();
-    if (!sb) return;
+    if (!sb) return false;
+
+    const existing = await supabaseFetch(room);
+    const localMarks = countMarks(state);
+    const cloudMarks = countMarks(existing);
+
+    if (localMarks === 0 && cloudMarks > 0) {
+      return true;
+    }
+
+    const merged = {
+      checks: mergeBoolMaps(existing?.checks, state.checks),
+      shopping: mergeBoolMaps(existing?.shopping, state.shopping),
+      custom: mergeCustom(existing?.custom, state.custom),
+    };
+
     const ts = Date.now();
     const body = {
       room_id: room,
-      checks: state.checks || {},
-      shopping: state.shopping || {},
-      custom: state.custom || {},
+      checks: merged.checks,
+      shopping: merged.shopping,
+      custom: merged.custom,
       updated_at: ts,
     };
     try {
@@ -211,7 +259,9 @@ window.TripSync = (function () {
     if (!room) return { error: 'no-room' };
     if (!hasCloud()) return { error: 'no-cloud' };
     const row = await supabaseFetch(room);
-    if (!row) return { error: 'fetch-failed' };
+    if (!row) {
+      return { checks: {}, shopping: {}, custom: {}, _ts: 0 };
+    }
     return {
       checks: row.checks || {},
       shopping: row.shopping || {},

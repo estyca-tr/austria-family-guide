@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'austria-trip-2026-v3';
   const SYNC_META_KEY = 'austria-trip-2026-v3-sync';
-  const APP_VERSION = '23';
+  const APP_VERSION = '24';
   let state = loadState();
   let currentTab = 'home';
   let moreSubTab = 'stay';
@@ -283,12 +283,12 @@
     if (!notify) return;
 
     const after = JSON.stringify({ checks: state.checks, shopping: state.shopping });
-    if (needsApply && before !== after) {
-      showToast('✓ עודכן מהענן');
-    } else if (markCount > 0) {
-      showToast(`✓ מסונכרן · ${markCount} סימונים בענן`);
+    if (markCount === 0) {
+      showToast('✓ מחובר — אין סימונים בענן. סמני פריט ולחצי שוב');
+    } else if (needsApply && before !== after) {
+      showToast(`✓ עודכן מהענן · ${markCount} סימונים`);
     } else {
-      showToast('✓ מחובר — אין עדיין סימונים בענן');
+      showToast(`✓ מסונכרן · ${markCount} סימונים בענן`);
     }
   }
 
