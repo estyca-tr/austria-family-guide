@@ -1,0 +1,20 @@
+{
+  "name": "המדריך המשפחתי שלנו לאוסטריה",
+  "short_name": "המדריך שלנו",
+  "description": "מדריך טיול משפחתי — רמסאו, הלשטאט ווינה, אוגוסט 2026",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1a4d3e",
+  "theme_color": "#1a4d3e",
+  "orientation": "portrait",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="המדריך שלנו" />
+  <meta name="theme-color" content="#1a4d3e" />
+  <meta name="description" content="המדריך המשפחתי שלנו לטיול באוסטריה — רמסאו, הלשטאט, וינה. לוח זמנים, קניות, לינות וטיסות." />
+  <meta property="og:title" content="המדריך המשפחתי שלנו לאוסטריה 🏔️" />
+  <meta property="og:description" content="כל מה שצריך לטיול המשפחתי שלנו — ימים, קניות, לינות, כשרות ועוד" />
+  <meta property="og:type" content="website" />
+  <meta property="og:locale" content="he_IL" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <title>המדריך המשפחתי שלנו לאוסטריה 🏔️</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="hero" id="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-content">
+        <p class="hero-tag">אוגוסט 2026 · Ramsau &amp; Hallstatt</p>
+        <h1 id="trip-title">המדריך המשפחתי שלנו</h1>
+        <p class="hero-dates" id="trip-dates"></p>
+        <p class="hero-family" id="trip-family"></p>
+        <div class="countdown" id="countdown"></div>
+      </div>
+    </header>
+
+    <main id="main-content"></main>
+
+    <nav class="bottom-nav" id="bottom-nav" aria-label="ניווט ראשי">
+      <button class="nav-btn active" data-tab="home" aria-label="בית">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">בית</span>
+      </button>
+      <button class="nav-btn" data-tab="days" aria-label="ימים">
+        <span class="nav-icon">📅</span>
+        <span class="nav-label">ימים</span>
+      </button>
+      <button class="nav-btn" data-tab="shopping" aria-label="קניות">
+        <span class="nav-icon">🛒</span>
+        <span class="nav-label">קניות</span>
+        <span class="nav-badge" id="shopping-badge" hidden></span>
+      </button>
+      <button class="nav-btn" data-tab="bookings" aria-label="הזמנות">
+        <span class="nav-icon">✅</span>
+        <span class="nav-label">הזמנות</span>
+        <span class="nav-badge" id="booking-badge" hidden></span>
+      </button>
+      <button class="nav-btn" data-tab="more" aria-label="עוד">
+        <span class="nav-icon">☰</span>
+        <span class="nav-label">עוד</span>
+      </button>
+    </nav>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
