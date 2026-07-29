@@ -6,6 +6,11 @@ window.TripSync = (function () {
   const ROOM_COOKIE = 'austria-trip-room-code';
   const CONFIG_KEY = 'austria-supabase-config';
   const POLL_MS = 2000;
+  const FALLBACK_SB = {
+    url: 'https://oannwkfrypmgptywjhty.supabase.co',
+    key: 'sb_publishable_ldcQP0CMKQsytMjv4IgQFQ_xLzS0rSl',
+  };
+  const FALLBACK_ROOM = 'PHVXFCNQ';
   let roomId = null;
   let onRemoteCallback = null;
   let pushTimer = null;
@@ -13,12 +18,19 @@ window.TripSync = (function () {
   let lastAppliedTs = 0;
 
   function getSupabase() {
+    const candidates = [];
     try {
       const stored = localStorage.getItem(CONFIG_KEY);
-      if (stored) return JSON.parse(stored);
+      if (stored) candidates.push(JSON.parse(stored));
     } catch { /* ignore */ }
     if (window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
-      return { url: window.SUPABASE_URL, key: window.SUPABASE_ANON_KEY };
+      candidates.push({ url: window.SUPABASE_URL, key: window.SUPABASE_ANON_KEY });
+    }
+    candidates.push(FALLBACK_SB);
+    for (const c of candidates) {
+      if (c && c.url && c.key) {
+        return { url: String(c.url).replace(/\/$/, ''), key: String(c.key) };
+      }
     }
     return null;
   }
@@ -78,6 +90,12 @@ window.TripSync = (function () {
         return code;
       }
     }
+    const fallback = String(FALLBACK_ROOM).trim().toUpperCase();
+    if (fallback.length >= 6) {
+      localStorage.setItem(ROOM_KEY, fallback);
+      writeRoomCookie(fallback);
+      return fallback;
+    }
     return null;
   }
 
@@ -136,21 +154,37 @@ window.TripSync = (function () {
     return id;
   }
 
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async function supabaseFetch(room) {
     const sb = getSupabase();
     if (!sb) return null;
     const endpoint = sb.url + '/rest/v1/trip_states?room_id=eq.' + encodeURIComponent(room) + '&select=*';
-    try {
-      const res = await fetch(endpoint, {
-        headers: { apikey: sb.key, Authorization: 'Bearer ' + sb.key },
-        cache: 'no-store',
-      });
-      if (!res.ok) return null;
-      const rows = await res.json();
-      return rows[0] || null;
-    } catch {
-      return null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-store',
+          headers: {
+            apikey: sb.key,
+            Authorization: 'Bearer ' + sb.key,
+            Accept: 'application/json',
+          },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          return rows[0] || null;
+        }
+        if (attempt === 0 && res.status === 401) {
+          localStorage.removeItem(CONFIG_KEY);
+        }
+      } catch { /* retry */ }
+      if (attempt < 2) await sleep(600);
     }
+    return null;
   }
 
   async function supabasePush(room, state) {

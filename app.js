@@ -240,10 +240,16 @@
       if (notify) showToast('חסר קוד קבוצה — מחקי את האייקון והוסיפי מחדש מהקישור');
       return;
     }
+    if (remote?.error === 'no-cloud') {
+      syncStatus = 'error';
+      updateSyncDot();
+      if (notify) showToast('🔴 הגדרות ענן חסרות — פתחי בדפדפן');
+      return;
+    }
     if (remote?.error) {
       syncStatus = 'error';
       updateSyncDot();
-      if (notify) showToast('🔴 בעיית רשת — נסי שוב בעוד רגע');
+      if (notify) showToast('🔴 בעיית רשת — ודאי שיש WiFi/סלולר ונסי שוב');
       return;
     }
     if (!remote || !remote._ts) {
@@ -613,7 +619,7 @@
   async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
-      const reg = await navigator.serviceWorker.register('sw.js?v=20');
+      const reg = await navigator.serviceWorker.register('sw.js?v=21');
       await reg.update();
 
       const showUpdateBanner = () => {
@@ -660,6 +666,7 @@
     openTodayDay();
     initSync();
     initServiceWorker();
+    setTimeout(() => pullFromCloud(false), 800);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         pullFromCloud(false);
