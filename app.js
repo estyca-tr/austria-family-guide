@@ -6,6 +6,8 @@
   let currentTab = 'home';
   let moreSubTab = 'stay';
   let shoppingFilter = 'all';
+  let applyingRemote = false;
+  let syncStatus = 'offline'; // offline | live | pending
 
   function defaultCustom() {
     return {
@@ -101,7 +103,267 @@
   }
 
   function saveState() {
+    const now = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY + '-ts', String(now));
+    if (!applyingRemote && typeof TripSync !== 'undefined' && TripSync.isConfigured() && TripSync.getRoomId()) {
+      syncStatus = 'pending';
+      updateSyncDot();
+      TripSync.push(state).then(() => {
+        syncStatus = 'live';
+        updateSyncDot();
+      });
+    }
+  }
+
+  function applyRemoteState(remote) {
+    applyingRemote = true;
+    state = {
+      checks: remote.checks || {},
+      shopping: remote.shopping || {},
+      custom: { ...defaultCustom(), ...(remote.custom || {}) },
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY + '-ts', String(Date.now()));
+    renderMain();
+    updateBadges();
+    syncStatus = 'live';
+    updateSyncDot();
+    applyingRemote = false;
+  }
+
+  function initSync() {
+    if (typeof TripSync === 'undefined') return;
+    if (!TripSync.isConfigured()) {
+      syncStatus = 'offline';
+      updateSyncDot();
+      return;
+    }
+    TripSync.init(applyRemoteState);
+    const room = TripSync.getRoomId();
+    if (!room) return;
+
+    TripSync.fetchOnce().then(remote => {
+      if (remote && remote._ts) {
+        const localTs = parseInt(localStorage.getItem(STORAGE_KEY + '-ts') || '0', 10);
+        if (remote._ts >= localTs) {
+          TripSync.bumpLastApplied(remote._ts);
+          applyRemoteState(remote);
+        } else {
+          TripSync.push(state);
+        }
+      } else {
+        TripSync.push(state);
+      }
+      syncStatus = 'live';
+      updateSyncDot();
+    });
+  }
+
+  function updateSyncDot() {
+    const el = document.getElementById('sync-status-pill');
+    if (!el) return;
+    const room = typeof TripSync !== 'undefined' ? TripSync.getRoomId() : null;
+    const configured = typeof TripSync !== 'undefined' && TripSync.isConfigured();
+    if (!configured) {
+      el.textContent = 'סנכרון: לא מוגדר';
+      el.className = 'sync-pill sync-offline';
+      return;
+    }
+    if (!room) {
+      el.textContent = 'סנכרון: בחרי קבוצה';
+      el.className = 'sync-pill sync-warn';
+      return;
+    }
+    if (syncStatus === 'pending') {
+      el.textContent = 'מסנכרן…';
+      el.className = 'sync-pill sync-pending';
+      return;
+    }
+    el.textContent = '🟢 מסונכרן · ' + room;
+    el.className = 'sync-pill sync-live';
+  }
+
+  function renderGroupCard() {
+    const configured = typeof TripSync !== 'undefined' && TripSync.isConfigured();
+    const room = typeof TripSync !== 'undefined' ? TripSync.getRoomId() : null;
+    const shareLink = room && typeof TripSync !== 'undefined' ? TripSync.groupShareUrl(room) : '';
+
+    if (!configured) {
+      return `
+        <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
+        <div class="card group-card">
+          <div class="card-title">שיתוף סימונים עם בעלך</div>
+          <p class="group-hint">כדי שמה שאת מסמנת יופיע אצלו בטלפון — צריך חיבור ענן חד-פעמי (חינם).</p>
+          <details class="firebase-setup">
+            <summary>הפעלת סנכרון (5 דקות, חד-פעמי)</summary>
+            <ol class="setup-steps">
+              <li>צרי פרויקט ב-<a href="https://console.firebase.google.com" target="_blank" rel="noopener">Firebase Console</a></li>
+              <li>הוסיפי Web App → העתיקי את ה-config</li>
+              <li>בנהלי → Realtime Database → Create → Start in test mode</li>
+              <li>הדביקי את ה-JSON כאן:</li>
+            </ol>
+            <textarea id="firebase-config-input" class="firebase-config-input" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"https://xxx.firebaseio.com","projectId":"..."}'></textarea>
+            <button type="button" class="maps-btn" id="save-firebase-config-btn">שמירה והפעלה</button>
+          </details>
+          <p class="group-hint" style="margin-top:0.75rem">בינתיים: <strong>ייצוא / ייבוא</strong> למטה (וואטסאפ)</p>
+          <div class="group-actions">
+            <button type="button" class="maps-btn" id="export-state-btn">📤 ייצוא סימונים</button>
+            <button type="button" class="maps-btn" style="background:var(--green-light)" id="import-state-btn">📥 ייבוא סימונים</button>
+          </div>
+        </div>`;
+    }
+
+    if (!room) {
+      return `
+        <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
+        <div class="card group-card group-card-active">
+          <div class="card-title">צרו קבוצה משפחתית</div>
+          <p class="group-hint">אותו קוד = אותה רשימה (את + בעלך).<br>זוג אחר? יוצרים <strong>קבוצה חדשה</strong> — רשימה נפרדת לגמרי.</p>
+          <div class="group-actions">
+            <button type="button" class="maps-btn" id="create-room-btn">✨ צרי קבוצה חדשה</button>
+          </div>
+          <div class="join-room-box">
+            <p class="group-hint">או הצטרפי לקבוצה קיימת (קוד מבעלך):</p>
+            <div class="shop-quick-row">
+              <input class="add-input" type="text" id="join-room-input" placeholder="קוד קבוצה (למשל ABC12XYZ)" maxlength="12" style="text-transform:uppercase" />
+              <button type="button" class="add-btn add-btn-wide" id="join-room-btn">הצטרפי</button>
+            </div>
+          </div>
+          <div class="group-actions" style="margin-top:0.5rem">
+            <button type="button" class="maps-btn" style="background:var(--text-muted)" id="export-state-btn">📤 ייצוא גיבוי</button>
+            <button type="button" class="maps-btn" style="background:var(--green-light)" id="import-state-btn">📥 ייבוא גיבוי</button>
+          </div>
+        </div>`;
+    }
+
+    return `
+      <div class="section-title">👨‍👩‍👧‍👦 סנכרון משפחתי</div>
+      <div class="card group-card group-card-live">
+        <div class="card-title">🟢 קבוצה פעילה: <span class="room-code">${esc(room)}</span></div>
+        <p class="group-hint">כל סימון ✓, קניות והערות — משותפים בזמן אמת עם מי שבאותה קבוצה.</p>
+        <div class="share-url" id="group-share-url">${esc(shareLink)}</div>
+        <div class="group-actions">
+          <button type="button" class="maps-btn" id="copy-group-link-btn">📋 שלחי לבעל (קישור + קוד)</button>
+          <button type="button" class="maps-btn" style="background:var(--green-light)" id="share-group-native-btn">↗️ שיתוף</button>
+        </div>
+        <details class="group-advanced">
+          <summary>זוג אחר / איפוס קבוצה</summary>
+          <p class="group-hint">זוג שמטייל באותו מסלול אבל רוצה רשימה משלו — יוצרים קבוצה חדשה (קוד אחר).</p>
+          <button type="button" class="maps-btn" style="background:#c44;margin-top:0.5rem" id="new-room-btn">קבוצה חדשה (זוג אחר)</button>
+        </details>
+        <div class="group-actions" style="margin-top:0.5rem">
+          <button type="button" class="maps-btn" style="background:var(--text-muted)" id="export-state-btn">📤 גיבוי</button>
+          <button type="button" class="maps-btn" style="background:var(--green-light)" id="import-state-btn">📥 ייבוא</button>
+        </div>
+      </div>`;
+  }
+
+  function exportStateJson() {
+    return JSON.stringify({ checks: state.checks, shopping: state.shopping, custom: state.custom }, null, 0);
+  }
+
+  function importStateJson(raw) {
+    const data = JSON.parse(raw);
+    state = {
+      checks: data.checks || {},
+      shopping: data.shopping || {},
+      custom: { ...defaultCustom(), ...(data.custom || {}) },
+    };
+    saveState();
+    renderMain();
+    showToast('✓ יובא בהצלחה');
+  }
+
+  function bindGroupEvents() {
+    document.getElementById('save-firebase-config-btn')?.addEventListener('click', () => {
+      const raw = document.getElementById('firebase-config-input')?.value?.trim();
+      if (!raw) return showToast('הדביקי את ה-config');
+      try {
+        const cfg = JSON.parse(raw);
+        if (!cfg.apiKey || !cfg.databaseURL) throw new Error('חסר apiKey או databaseURL');
+        TripSync.saveFirebaseConfig(cfg);
+        showToast('✓ סנכרון הופעל!');
+        initSync();
+        renderMain();
+      } catch (e) {
+        showToast('JSON לא תקין');
+      }
+    });
+
+    document.getElementById('create-room-btn')?.addEventListener('click', async () => {
+      const code = TripSync.createRoom();
+      if (!code) return showToast('שגיאה — בדקי חיבור ענן');
+      await TripSync.push(state);
+      showToast('✓ קבוצה נוצרה: ' + code);
+      renderMain();
+    });
+
+    document.getElementById('join-room-btn')?.addEventListener('click', async () => {
+      const input = document.getElementById('join-room-input');
+      const code = TripSync.joinRoom(input?.value || '');
+      if (!code) return showToast('קוד לא תקין');
+      const remote = await TripSync.fetchOnce();
+      if (remote && remote._ts) {
+        TripSync.bumpLastApplied(remote._ts);
+        applyRemoteState(remote);
+        showToast('✓ הצטרפת לקבוצה ' + code);
+      } else {
+        await TripSync.push(state);
+        showToast('✓ הצטרפת — העלית את הסימונים שלך');
+      }
+      renderMain();
+    });
+
+    document.getElementById('copy-group-link-btn')?.addEventListener('click', () => {
+      const room = TripSync.getRoomId();
+      const link = TripSync.groupShareUrl(room);
+      const text = 'המדריך שלנו לאוסטריה — הצטרף לקבוצה שלנו:\n' + link + '\n(קוד: ' + room + ')';
+      navigator.clipboard.writeText(text).then(() => showToast('✓ הועתק לבעל!')).catch(() => showToast(text));
+    });
+
+    document.getElementById('share-group-native-btn')?.addEventListener('click', async () => {
+      const room = TripSync.getRoomId();
+      const link = TripSync.groupShareUrl(room);
+      const text = 'הצטרף לקבוצת הטיול שלנו (סימונים משותפים)';
+      if (navigator.share) {
+        try { await navigator.share({ title: 'קבוצת טיול אוסטריה', text, url: link }); } catch { /* cancelled */ }
+      } else {
+        navigator.clipboard.writeText(link).then(() => showToast('✓ הקישור הועתק'));
+      }
+    });
+
+    document.getElementById('new-room-btn')?.addEventListener('click', async () => {
+      if (!confirm('ליצור קבוצה חדשה? זוג אחר יקבל רשימה נפרדת. הסימונים הנוכחיים יישארו אצלך מקומית.')) return;
+      TripSync.leaveRoom();
+      state = { checks: {}, shopping: {}, custom: defaultCustom() };
+      saveState();
+      const code = TripSync.createRoom();
+      await TripSync.push(state);
+      showToast('קבוצה חדשה: ' + code);
+      renderMain();
+    });
+
+    document.getElementById('export-state-btn')?.addEventListener('click', () => {
+      const json = exportStateJson();
+      const msg = 'העתיקי ושלחי בוואטסאפ לבעל:\n\n' + json;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(json).then(() => showToast('✓ הועתק — שלחי לבעל')).catch(() => prompt('העתיקי:', json));
+      } else {
+        prompt('העתיקי ושלחי:', json);
+      }
+    });
+
+    document.getElementById('import-state-btn')?.addEventListener('click', () => {
+      const raw = prompt('הדביקי את הקוד שקיבלת (ייצוא מוואטסאפ):');
+      if (!raw) return;
+      try {
+        importStateJson(raw.trim());
+        if (TripSync.getRoomId()) TripSync.push(state);
+      } catch {
+        showToast('קוד לא תקין');
+      }
+    });
   }
 
   function showToast(msg) {
@@ -161,9 +423,10 @@
     bindNav();
     updateBadges();
     openTodayDay();
+    initSync();
 
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js?v=8').catch(() => {});
+      navigator.serviceWorker.register('sw.js?v=9').catch(() => {});
     }
   }
 
@@ -255,6 +518,7 @@
     main.innerHTML = (renderers[currentTab] || renderHome)();
     bindDynamicEvents();
     updateBadges();
+    updateSyncDot();
   }
 
   function progressBar(done, total, label) {
@@ -331,6 +595,8 @@
           <button class="quick-btn" data-goto-sub="stay"><span class="qb-icon">🏡</span>לינה</button>
           <button class="quick-btn" data-goto-sub="kosher"><span class="qb-icon">✡️</span>כשרות</button>
         </div>
+        <div id="sync-status-pill" class="sync-pill sync-offline">סנכרון</div>
+        ${renderGroupCard()}
         <div class="section-title">שיתוף המדריך</div>
         <div class="card share-card">
           <div class="card-title">${esc(TRIP.meta.shareTitle || TRIP.meta.title)}</div>
@@ -993,6 +1259,7 @@
     });
 
     bindCustomEvents();
+    bindGroupEvents();
 
     const copyBtn = document.getElementById('copy-share-btn');
     if (copyBtn) {

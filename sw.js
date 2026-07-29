@@ -1,5 +1,9 @@
-const CACHE = 'austria-trip-v8';
-const ASSETS = ['./', './index.html', './styles.css?v=8', './app.js?v=8', './data.js?v=8', './places.js?v=8', './manifest.json', './icon.svg'];
+const CACHE = 'austria-trip-v9';
+const ASSETS = [
+  './', './index.html', './styles.css?v=9', './app.js?v=9', './data.js?v=9',
+  './places.js?v=9', './sync.js?v=9', './firebase-config.js?v=9',
+  './manifest.json', './icon.svg',
+];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));

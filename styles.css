@@ -597,6 +597,86 @@ body {
   margin: 0.25rem 0;
 }
 
+/* Family sync */
+.sync-pill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.35rem 0.65rem;
+  border-radius: 20px;
+  margin-bottom: 0.5rem;
+}
+
+.sync-offline { background: #f0f0f0; color: var(--text-muted); }
+.sync-warn { background: #fff3cd; color: #856404; }
+.sync-pending { background: #e8f4fd; color: #0c5460; }
+.sync-live { background: var(--green-pale); color: var(--green-dark); }
+
+.group-card { border: 1px solid var(--border); }
+.group-card-active { border: 2px dashed var(--green-light); background: #fafdfa; }
+.group-card-live { border: 2px solid var(--green); background: var(--green-pale); }
+
+.group-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0.6rem;
+  line-height: 1.45;
+}
+
+.group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.group-actions .maps-btn { flex: 1; min-width: 140px; }
+
+.room-code {
+  font-family: monospace;
+  letter-spacing: 0.08em;
+  background: #fff;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+
+.join-room-box { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px dashed var(--border); }
+
+.firebase-setup summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--green);
+  font-size: 0.85rem;
+  padding: 0.4rem 0;
+}
+
+.setup-steps {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding-right: 1.1rem;
+  margin: 0.5rem 0;
+  line-height: 1.5;
+}
+
+.firebase-config-input {
+  width: 100%;
+  min-height: 72px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  font-family: monospace;
+  font-size: 0.7rem;
+  direction: ltr;
+  box-sizing: border-box;
+  margin-bottom: 0.5rem;
+}
+
+.group-advanced summary {
+  cursor: pointer;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 0.75rem;
+}
+
 .del-btn {
   flex-shrink: 0;
   width: 28px;
