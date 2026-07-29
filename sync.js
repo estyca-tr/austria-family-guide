@@ -68,8 +68,17 @@ window.TripSync = (function () {
     if (stored) {
       localStorage.setItem(ROOM_KEY, stored);
       writeRoomCookie(stored);
+      return stored;
     }
-    return stored || null;
+    if (window.DEFAULT_ROOM) {
+      const code = String(window.DEFAULT_ROOM).trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (code.length >= 6) {
+        localStorage.setItem(ROOM_KEY, code);
+        writeRoomCookie(code);
+        return code;
+      }
+    }
+    return null;
   }
 
   function getRoomId() {
@@ -176,18 +185,16 @@ window.TripSync = (function () {
 
   async function fetchOnce() {
     const room = getRoomId();
-    if (!room) return null;
-    if (hasCloud()) {
-      const row = await supabaseFetch(room);
-      if (!row) return null;
-      return {
-        checks: row.checks || {},
-        shopping: row.shopping || {},
-        custom: row.custom || {},
-        _ts: row.updated_at || 0,
-      };
-    }
-    return decodeStateHash();
+    if (!room) return { error: 'no-room' };
+    if (!hasCloud()) return { error: 'no-cloud' };
+    const row = await supabaseFetch(room);
+    if (!row) return { error: 'fetch-failed' };
+    return {
+      checks: row.checks || {},
+      shopping: row.shopping || {},
+      custom: row.custom || {},
+      _ts: row.updated_at || 0,
+    };
   }
 
   function startPolling() {
@@ -195,7 +202,7 @@ window.TripSync = (function () {
     if (!getRoomId() || !hasCloud()) return;
     pollTimer = setInterval(async () => {
       const remote = await fetchOnce();
-      if (!remote || !remote._ts) return;
+      if (!remote || remote.error || !remote._ts) return;
       if (remote._ts <= lastAppliedTs) return;
       lastAppliedTs = remote._ts;
       if (onRemoteCallback) {
@@ -219,6 +226,7 @@ window.TripSync = (function () {
   function init(onRemote) {
     onRemoteCallback = onRemote;
     roomId = resolveRoomId();
+    if (roomId) updateUrl(roomId);
 
     const fromHash = decodeStateHash();
     if (fromHash && fromHash._ts) {
@@ -296,5 +304,6 @@ window.TripSync = (function () {
     saveSupabase,
     bumpLastApplied,
     encodeState,
+    updateUrl,
   };
 })();

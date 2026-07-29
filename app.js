@@ -213,7 +213,7 @@
     }
 
     TripSync.fetchOnce().then(remote => {
-      if (remote && remote._ts) {
+      if (remote && !remote.error && remote._ts) {
         TripSync.bumpLastApplied(remote._ts);
         applyRemoteState(remote, remote._ts);
       } else if (!isFirstJoinViaLink && stateHasMarks(state)) {
@@ -234,6 +234,18 @@
     updateSyncDot();
 
     const remote = await TripSync.fetchOnce();
+    if (remote?.error === 'no-room') {
+      syncStatus = 'error';
+      updateSyncDot();
+      if (notify) showToast('חסר קוד קבוצה — מחקי את האייקון והוסיפי מחדש מהקישור');
+      return;
+    }
+    if (remote?.error) {
+      syncStatus = 'error';
+      updateSyncDot();
+      if (notify) showToast('🔴 בעיית רשת — נסי שוב בעוד רגע');
+      return;
+    }
     if (!remote || !remote._ts) {
       syncStatus = 'error';
       updateSyncDot();
@@ -437,7 +449,7 @@
       const code = TripSync.joinRoom(input?.value || '');
       if (!code) return showToast('קוד לא תקין');
       const remote = await TripSync.fetchOnce();
-      if (remote && remote._ts) {
+      if (remote && !remote.error && remote._ts) {
         TripSync.bumpLastApplied(remote._ts);
         applyRemoteState(remote, remote._ts);
         showToast('✓ הצטרפת לקבוצה ' + code);
@@ -601,7 +613,7 @@
   async function initServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
     try {
-      const reg = await navigator.serviceWorker.register('sw.js?v=19');
+      const reg = await navigator.serviceWorker.register('sw.js?v=20');
       await reg.update();
 
       const showUpdateBanner = () => {
